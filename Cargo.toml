@@ -7,4 +7,5 @@ edition = "2018"
 
 [dependencies]
 sdl_wrapper = { git = "https://github.com/zkwinkle/sdl_wrapper" }
-svg = "0.10.0"
+svg = "0.10"
+anyhow = "1.0"
