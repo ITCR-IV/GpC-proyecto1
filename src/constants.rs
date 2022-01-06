@@ -11,6 +11,3 @@ pub const SCENE_SIZE: u32 = 1000;
 
 /// Point polling spacing
 pub const POINT_SPACING: f32 = 1.0;
-
-/// SVG scaling for the viewbox (from inkscape the scale-x inverse)
-pub const SVG_SCALE: f32 = 3.7796;

@@ -21,14 +21,13 @@ use crate::shapes::{Color, Line, Point, Polygon};
 
 pub struct Car {
     polygons: Vec<Polygon>,
-    height: u32,
-    width: u32,
+    scene_size: u32,
 }
 
 /// Function made to specifically parse the "car.svg" file and return a "Car" object.
-pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
+pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
     let mut content = String::new();
-    let (parser, mut car) = init_svg(path, scaling, &mut content)?;
+    let (parser, mut car, scaling) = init_svg(path, scene_size, &mut content)?;
 
     let mut layer: i32 = 0;
 
@@ -282,6 +281,15 @@ fn approximate_ellipse(
 
     border.push(border[0]);
 
+    println!(
+        "Ellipse:\n\tcx:{}\tcy:{}\n\trx:{}\try:{}\n\tApprox: {:?}",
+        center.x(),
+        center.y(),
+        radius_x,
+        radius_y,
+        border,
+    );
+
     ellipse_poly.add_border(border);
 
     Ok(ellipse_poly)
@@ -291,12 +299,15 @@ fn approximate_ellipse(
 /// tag, but making sure that <svg> is the first tag in the file and that it does exist. When found
 /// it obtains the "viewBox" size and scales it by the "scale" factor. Returns a Car object that
 /// still holds no polygons but has its dimensions defined.
-fn init_svg<'l>(path: &str, scaling: f32, content: &'l mut String) -> Result<(Parser<'l>, Car)> {
+fn init_svg<'l>(
+    path: &str,
+    scene_size: u32,
+    content: &'l mut String,
+) -> Result<(Parser<'l>, Car, f32)> {
     // init car with dummy values
     let mut car = Car {
         polygons: Vec::new(),
-        height: 0,
-        width: 0,
+        scene_size,
     };
 
     let mut parser: Parser = svg::open(path, content)?;
@@ -325,10 +336,15 @@ fn init_svg<'l>(path: &str, scaling: f32, content: &'l mut String) -> Result<(Pa
                         )
                     })?;
 
-                car.width = (viewbox[2] * scaling).round() as u32;
-                car.height = (viewbox[3] * scaling).round() as u32;
-
-                return Ok((parser, car));
+                return if viewbox.len() == 4 && viewbox[2] == viewbox[3] {
+                    let scaling: f32 = scene_size as f32 / viewbox[2];
+                    Ok((parser, car, scaling))
+                } else {
+                    Err(anyhow!(
+                        "viewBox leído de .svg no es cuadrado o tiene más de dos dimensiones: {:?}",
+                        viewbox
+                    ))
+                };
             }
             // Si encontramos un <tag> que no es svg
             Event::Tag(tag, _, _) => {

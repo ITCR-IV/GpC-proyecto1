@@ -2,7 +2,7 @@ use crate::constants::SCENE_SIZE;
 use anyhow::{anyhow, Result};
 
 /// Important to note that this is a point in universal, continous coordinates.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Point {
     x: f32,
     y: f32,
@@ -12,7 +12,7 @@ fn check_ranges<N: PartialOrd + ToString>(values: Vec<N>, min: N, max: N) -> Res
     let mut wrong_vals = values.iter().filter(|v| **v < min || **v > max).peekable();
     if wrong_vals.peek().is_some() {
         Err(
-            anyhow!("Values for {} type given outside the [{}, {}] range. The following were the erronous ranges:{}", std::any::type_name::<N>(), min.to_string(), max.to_string(), wrong_vals.fold(String::from(" "),|acc, v| acc + &v.to_string())),
+            anyhow!("Values for {} type given outside the [{}, {}] range. The following were the erronous ranges:{}", std::any::type_name::<N>(), min.to_string(), max.to_string(), wrong_vals.fold(String::from(""),|acc, v| acc + " " + &v.to_string())),
         )
     } else {
         Ok(())

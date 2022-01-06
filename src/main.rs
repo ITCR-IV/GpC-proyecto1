@@ -2,9 +2,9 @@ mod car;
 mod constants;
 mod shapes;
 
-use constants::{POINT_SPACING, SVG_SCALE};
+use constants::{POINT_SPACING, SCENE_SIZE};
 
 fn main() {
     let path = "images/car.svg";
-    car::parse_svg(path, SVG_SCALE, POINT_SPACING).unwrap();
+    car::parse_svg(path, SCENE_SIZE, POINT_SPACING).unwrap();
 }
