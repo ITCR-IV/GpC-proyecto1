@@ -24,6 +24,13 @@ impl Point {
         check_ranges(vec![x, y], 0.0, SCENE_SIZE as f32)?;
         Ok(Point { x, y })
     }
+
+    pub fn x(&self) -> f32 {
+        self.x
+    }
+    pub fn y(&self) -> f32 {
+        self.y
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -44,9 +51,18 @@ impl Color {
     }
 
     pub fn from_hex(hex: &str) -> Result<Color> {
-        Err(anyhow!(
-            "Esta función está incompleta y no se debe llamar: 'from_hex()'"
-        ))
+        if is_hex_format(hex) {
+            Ok(Color::new(
+                u8::from_str_radix(&hex[1..=2], 16)? as f32 / 255.0,
+                u8::from_str_radix(&hex[3..=4], 16)? as f32 / 255.0,
+                u8::from_str_radix(&hex[5..=6], 16)? as f32 / 255.0,
+            )?)
+        } else {
+            Err(anyhow!(
+                "from_hex() llamado en string incorrectamente formateado para hexadecimales: '{}'",
+                hex
+            ))
+        }
     }
 }
 

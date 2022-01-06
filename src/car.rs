@@ -1,11 +1,15 @@
 #![allow(non_upper_case_globals)]
 
+// TODO: get rid of 'as' casting
+// TODO: approximate_ellipse() todo: refactor approximation to be less loopy
+
 use anyhow::{anyhow, Context, Result};
 //Err(anyhow!(
 //    "Esta función está incompleta y no se debe llamar: 'parse_color()'"
 //))
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::f32::consts::PI;
 use svg::node::element::{
     path::{Command, Data},
     tag::{self, Type},
@@ -24,7 +28,7 @@ pub struct Car {
 /// Function made to specifically parse the "car.svg" file and return a "Car" object.
 pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
     let mut content = String::new();
-    let (parser, car) = init_svg(path, scaling, &mut content)?;
+    let (parser, mut car) = init_svg(path, scaling, &mut content)?;
 
     let mut layer: i32 = 0;
 
@@ -62,12 +66,16 @@ pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
                     .get("id")
                     .ok_or_else(|| anyhow!("circle no trae id"))?;
                 println!("Circle id: {}", id);
+                let poly_circle = approximate_circle(attributes, layer, scaling, distance)?;
+                car.polygons.push(poly_circle);
             }
             Event::Tag(tag::Ellipse, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
                     .get("id")
                     .ok_or_else(|| anyhow!("ellipse no trae id"))?;
                 println!("Ellipse id: {}", id);
+                let poly_ellipse = approximate_ellipse(attributes, layer, scaling, distance)?;
+                car.polygons.push(poly_ellipse);
             }
             // unhandled
             Event::Tag(tag, Type::Start | Type::Empty, _) => {
@@ -128,27 +136,156 @@ fn parse_style(style: &str) -> Result<Style> {
     })
 }
 
-fn approximate_path() {}
-fn approximate_circle(attributes: Attributes, layer: i32) -> Result<Polygon> {
+fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon> {
     let id = attributes
         .get("id")
-        .ok_or_else(|| anyhow!("circle no trae id"))?;
-    let mut circle_poly = Polygon::new(layer, id.to_string());
+        .ok_or_else(|| anyhow!("elemento (path/circle/ellipse) no trae id"))?;
+    let mut poly = Polygon::new(layer, id.to_string());
 
     let style = parse_style(
         attributes
             .get("style")
-            .ok_or_else(|| anyhow!("circle no trae style"))?,
+            .ok_or_else(|| anyhow!("elemento (path/circle/ellipse) no trae style"))?,
     )?;
 
-    circle_poly.set_stroke_color(style.stroke);
-    circle_poly.set_fill_color(style.stroke);
-
-    Err(anyhow!(
-        "Esta función está incompleta y no se debe llamar: 'approximate_circle()'"
-    ))
+    poly.set_stroke_color(style.stroke);
+    poly.set_fill_color(style.stroke);
+    Ok(poly)
 }
-fn approximate_ellipse() {}
+
+fn approximate_path() {}
+fn approximate_circle(
+    attributes: Attributes,
+    layer: i32,
+    scaling: f32,
+    distance: f32,
+) -> Result<Polygon> {
+    let mut circle_poly = init_polygon(&attributes, layer)?;
+
+    let center = Point::new(
+        attributes
+            .get("cx")
+            .ok_or_else(|| anyhow!("circle no trae 'cx'"))?
+            .parse::<f32>()?
+            * scaling,
+        attributes
+            .get("cy")
+            .ok_or_else(|| anyhow!("circle no trae 'cy'"))?
+            .parse::<f32>()?
+            * scaling,
+    )?;
+
+    let radius: f32 = attributes
+        .get("r")
+        .ok_or_else(|| anyhow!("circle no trae 'r'"))?
+        .parse::<f32>()?
+        * scaling;
+
+    let perimeter: f32 = 2.0 * radius * PI;
+    let num_points: u32 = (perimeter / distance).round() as u32;
+    let theta: f32 = 2.0 * PI / num_points as f32;
+
+    // circles can assume a single border
+    let mut border: Line = (0..num_points)
+        .map(|i| {
+            Point::new(
+                center.x() + (theta * i as f32).cos() * radius,
+                center.y() + (theta * i as f32).sin() * radius,
+            )
+        })
+        .collect::<Result<Line>>()?;
+
+    border.push(border[0]);
+
+    circle_poly.add_border(border);
+
+    Ok(circle_poly)
+}
+
+fn approximate_ellipse(
+    attributes: Attributes,
+    layer: i32,
+    scaling: f32,
+    distance: f32,
+) -> Result<Polygon> {
+    // TODO: refactor the approximation to use less looping and more iterating
+
+    let mut ellipse_poly = init_polygon(&attributes, layer)?;
+
+    let center = Point::new(
+        attributes
+            .get("cx")
+            .ok_or_else(|| anyhow!("ellipse no trae 'cx'"))?
+            .parse::<f32>()?
+            * scaling,
+        attributes
+            .get("cy")
+            .ok_or_else(|| anyhow!("ellipse no trae 'cy'"))?
+            .parse::<f32>()?
+            * scaling,
+    )?;
+
+    let radius_x: f32 = attributes
+        .get("rx")
+        .ok_or_else(|| anyhow!("ellipse no trae 'rx'"))?
+        .parse::<f32>()?
+        * scaling;
+    let radius_y: f32 = attributes
+        .get("ry")
+        .ok_or_else(|| anyhow!("ellipse no trae 'ry'"))?
+        .parse::<f32>()?
+        * scaling;
+
+    let perimeter: f32 = 2.0 * PI * ((radius_x.powi(2) + radius_y.powi(2)) / 2.0).sqrt();
+    let num_points: u32 = (perimeter / distance).round() as u32;
+
+    // La siguiente sección de código adapta al siguiente pseudocódigo:
+    //
+    //dp(t) = sqrt( (r1*sin(t))^2 + (r2*cos(t))^2)
+    //circ = sum(dp(t), t=0..2*Pi step 0.0001)
+    //
+    //n = 20
+    //
+    //nextPoint = 0
+    //run = 0.0
+    //for t=0..2*Pi step 0.0001
+    //    if n*run/circ >= nextPoint then
+    //        set point (r1*cos(t), r2*sin(t))
+    //        nextPoint = nextPoint + 1
+    //    next
+    //    run = run + dp(t)
+    //next
+    //
+    // Ref: https://stackoverflow.com/questions/6972331/how-can-i-generate-a-set-of-points-evenly-distributed-along-the-perimeter-of-an
+
+    let dp = |t: f32| ((radius_x * t.sin()).powi(2) + (radius_y * t.cos()).powi(2)).sqrt();
+    let step: f32 = 0.0001;
+    let circ: f32 = (0..(2.0 * PI / step).trunc() as u32)
+        .map(|i| dp(i as f32 * step))
+        .sum();
+
+    let mut run: f32 = 0.0;
+    let mut next_point = 0.0;
+
+    let mut border = Line::new();
+    for t in 0..(2.0 * PI / step).trunc() as u32 {
+        let theta: f32 = t as f32 * step;
+        if num_points as f32 * run / circ >= next_point {
+            next_point += distance;
+            border.push(Point::new(
+                center.x() + (theta).cos() * radius_x,
+                center.y() + (theta).sin() * radius_y,
+            )?);
+        }
+        run += dp(theta);
+    }
+
+    border.push(border[0]);
+
+    ellipse_poly.add_border(border);
+
+    Ok(ellipse_poly)
+}
 
 /// This function parse the initial lines of the "car.svg" file, ignoring anything before the <svg>
 /// tag, but making sure that <svg> is the first tag in the file and that it does exist. When found
