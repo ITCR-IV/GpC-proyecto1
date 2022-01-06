@@ -1,11 +1,19 @@
 #![allow(non_upper_case_globals)]
 
 use anyhow::{anyhow, Context, Result};
-use svg::node::element::path::{Command, Data};
-use svg::node::element::tag::{Circle, Ellipse, Group, Path, Type, SVG};
+//Err(anyhow!(
+//    "Esta función está incompleta y no se debe llamar: 'parse_color()'"
+//))
+use itertools::Itertools;
+use std::collections::HashMap;
+use svg::node::element::{
+    path::{Command, Data},
+    tag::{self, Type},
+};
+use svg::node::Attributes;
 use svg::parser::{Event, Parser};
 
-use crate::shapes::Polygon;
+use crate::shapes::{Color, Line, Point, Polygon};
 
 pub struct Car {
     polygons: Vec<Polygon>,
@@ -23,7 +31,7 @@ pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
     for event in parser {
         match event {
             // Group = layers
-            Event::Tag(Group, Type::Start, attributes) => {
+            Event::Tag(tag::Group, Type::Start, attributes) => {
                 let id = attributes
                     .get("id")
                     .ok_or_else(|| anyhow!("group no trae id (layer sin número)"))?;
@@ -34,7 +42,7 @@ pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
             }
 
             // Path = líneas/curvas
-            Event::Tag(Path, Type::Empty | Type::Start, attributes) => {
+            Event::Tag(tag::Path, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
                     .get("id")
                     .ok_or_else(|| anyhow!("path no trae id"))?;
@@ -49,13 +57,13 @@ pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
                 //    }
                 //}
             }
-            Event::Tag(Circle, Type::Empty | Type::Start, attributes) => {
+            Event::Tag(tag::Circle, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
                     .get("id")
                     .ok_or_else(|| anyhow!("circle no trae id"))?;
                 println!("Circle id: {}", id);
             }
-            Event::Tag(Ellipse, Type::Empty | Type::Start, attributes) => {
+            Event::Tag(tag::Ellipse, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
                     .get("id")
                     .ok_or_else(|| anyhow!("ellipse no trae id"))?;
@@ -71,11 +79,75 @@ pub fn parse_svg(path: &str, scaling: f32, distance: f32) -> Result<Car> {
         }
     }
 
-    Ok(car)
+    Err(anyhow!(
+        "Esta función está incompleta y no se debe llamar: 'parse_svg()'"
+    ))
+}
+
+struct Style {
+    stroke: Option<Color>,
+    fill: Option<Color>,
+}
+
+/// Parses color from a style attribute in the svg, which can either be in the form
+fn parse_color(color: &str) -> Result<Option<Color>> {
+    match color {
+        "none" => Ok(None),
+        hex => Ok(Some(Color::from_hex(hex)?)),
+    }
+}
+
+fn parse_style(style: &str) -> Result<Style> {
+    let style: HashMap<String, String> = style
+        .split(';')
+        .map(|s| {
+            s.split(':')
+                .map(|s| s.to_string())
+                .collect_tuple()
+                .ok_or_else(|| anyhow!("No se pudo separar key:value pair: {}", s))
+        })
+        .collect::<Result<HashMap<String, String>, _>>()
+        .with_context(|| {
+            format!(
+                "No se pudo separar algún key:value pair dentro de atributo de style: {}",
+                style
+            )
+        })?;
+
+    Ok(Style {
+        stroke: parse_color(
+            style
+                .get("stroke")
+                .ok_or_else(|| anyhow!("atributo 'style' no trae 'stroke': {:?}", style))?,
+        )?,
+        fill: parse_color(
+            style
+                .get("fill")
+                .ok_or_else(|| anyhow!("atributo 'style' no trae 'fill': {:?}", style))?,
+        )?,
+    })
 }
 
 fn approximate_path() {}
-fn approximate_circle() {}
+fn approximate_circle(attributes: Attributes, layer: i32) -> Result<Polygon> {
+    let id = attributes
+        .get("id")
+        .ok_or_else(|| anyhow!("circle no trae id"))?;
+    let mut circle_poly = Polygon::new(layer, id.to_string());
+
+    let style = parse_style(
+        attributes
+            .get("style")
+            .ok_or_else(|| anyhow!("circle no trae style"))?,
+    )?;
+
+    circle_poly.set_stroke_color(style.stroke);
+    circle_poly.set_fill_color(style.stroke);
+
+    Err(anyhow!(
+        "Esta función está incompleta y no se debe llamar: 'approximate_circle()'"
+    ))
+}
 fn approximate_ellipse() {}
 
 /// This function parse the initial lines of the "car.svg" file, ignoring anything before the <svg>
@@ -97,7 +169,7 @@ fn init_svg<'l>(path: &str, scaling: f32, content: &'l mut String) -> Result<(Pa
     for event in &mut parser {
         match event {
             // Encontramos tag <svg>
-            Event::Tag(SVG, Type::Start, attributes) => {
+            Event::Tag(tag::SVG, Type::Start, attributes) => {
                 println!("viewbox: {:?}", attributes.get("viewBox"));
 
                 // parseamos el viewbox

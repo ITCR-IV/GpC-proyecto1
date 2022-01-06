@@ -2,7 +2,7 @@ mod car;
 mod constants;
 mod shapes;
 
-use constants::*;
+use constants::{POINT_SPACING, SVG_SCALE};
 
 fn main() {
     let path = "images/car.svg";

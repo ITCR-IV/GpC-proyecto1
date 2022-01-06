@@ -9,3 +9,4 @@ edition = "2018"
 sdl_wrapper = { git = "https://github.com/zkwinkle/sdl_wrapper" }
 svg = "0.10"
 anyhow = "1.0"
+itertools = "0.10"
