@@ -25,6 +25,10 @@ impl Point {
         Ok(Point { x, y })
     }
 
+    pub fn new_unchecked(x: f32, y: f32) -> Point {
+        Point { x, y }
+    }
+
     pub fn x(&self) -> f32 {
         self.x
     }
@@ -67,9 +71,21 @@ impl Color {
 }
 
 /// Note that a 'Line' isn't a straight 2-point line. It's composed of an arbitrary amount of
-/// Points. It can represent the entire border encapsulating a polygon. If a line circles back then
-/// the last Point will be equal to the first one.
+/// Points. It can represent the entire border encapsulating a polygon, or a single dot. If a
+/// line circles back then the last Point will be equal to the first one.
 pub type Line = Vec<Point>;
+
+pub trait LineMethods {
+    fn euclidean_length(&self) -> f32;
+}
+
+impl LineMethods for Line {
+    fn euclidean_length(&self) -> f32 {
+        self.windows(2)
+            .map(|w| ((w[1].x() - w[0].x()).powi(2) + (w[1].y() - w[0].y()).powi(2)).sqrt())
+            .sum()
+    }
+}
 
 pub struct Polygon {
     /// The borders being a Vec<Line> doesn't mean that every straight line encapsulating for
@@ -116,5 +132,14 @@ impl Polygon {
 
     pub fn set_fill_color(&mut self, color: Option<Color>) {
         self.fill_color = color;
+    }
+
+    pub fn scale(mut self, scale: f32) -> Result<Self> {
+        for line in self.borders.iter_mut() {
+            for point in line.iter_mut() {
+                *point = Point::new(point.x() * scale, point.y() * scale)?
+            }
+        }
+        Ok(self)
     }
 }

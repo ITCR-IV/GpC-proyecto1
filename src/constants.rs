@@ -11,3 +11,6 @@ pub const SCENE_SIZE: u32 = 1000;
 
 /// Point polling spacing
 pub const POINT_SPACING: f32 = 1.0;
+
+/// Bezier polyline approximation for then finding equidistant points
+pub const POLYLINE_N: u32 = 1000;

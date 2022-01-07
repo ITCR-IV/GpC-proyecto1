@@ -1,7 +1,6 @@
 #![allow(non_upper_case_globals)]
 
 // TODO: get rid of 'as' casting
-// TODO: approximate_ellipse() todo: refactor approximation to be less loopy
 
 use anyhow::{anyhow, Context, Result};
 //Err(anyhow!(
@@ -11,13 +10,14 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use svg::node::element::{
-    path::{Command, Data},
+    path::{Command, Data, Parameters, Position},
     tag::{self, Type},
 };
 use svg::node::Attributes;
 use svg::parser::{Event, Parser};
 
-use crate::shapes::{Color, Line, Point, Polygon};
+use crate::constants::POLYLINE_N;
+use crate::shapes::{Color, Line, LineMethods, Point, Polygon};
 
 pub struct Car {
     polygons: Vec<Polygon>,
@@ -50,15 +50,8 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
                     .get("id")
                     .ok_or_else(|| anyhow!("path no trae id"))?;
                 println!("Path id: {}", id);
-                //let data = attributes.get("d").unwrap();
-                //let data = Data::parse(data).unwrap();
-                //for command in data.iter() {
-                //    match command {
-                //        &Command::Move(..) => println!("Move!"),
-                //        &Command::Line(..) => println!("Line!"),
-                //        _ => {}
-                //    }
-                //}
+                let poly_path = approximate_path(attributes, layer, scaling, distance)?;
+                car.polygons.push(poly_path);
             }
             Event::Tag(tag::Circle, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
@@ -152,7 +145,101 @@ fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon> {
     Ok(poly)
 }
 
-fn approximate_path() {}
+fn approx_cubic_bezier_aux(segment: &[f32], anchor: Point, n: u32) -> Result<Line> {
+    let p0 = anchor;
+    let p1 = Point::new_unchecked(segment[0] + p0.x(), segment[1] + p0.y());
+    let p2 = Point::new_unchecked(segment[2] + p0.x(), segment[3] + p0.y());
+    let p3 = Point::new_unchecked(segment[4] + p0.x(), segment[5] + p0.y());
+    println!(
+        "Approximating curve:\n\tp0: {:?}\tp1: {:?}\n\tp2: {:?}\tp3: {:?}",
+        p0, p1, p2, p3
+    );
+    let b = |t: f32| {
+        Point::new(
+            (1.0 - t).powi(3) * p0.x()
+                + 3.0 * (1.0 - t).powi(2) * t * p1.x()
+                + 3.0 * (1.0 - t) * t * t * p2.x()
+                + t.powi(3) * p3.x(),
+            (1.0 - t).powi(3) * p0.y()
+                + 3.0 * (1.0 - t).powi(2) * t * p1.y()
+                + 3.0 * (1.0 - t) * t * t * p2.y()
+                + t.powi(3) * p3.y(),
+        )
+    };
+
+    (0..n)
+        .map(|t| b((t as f32) / n as f32))
+        .collect::<Result<Line>>()
+}
+
+fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) -> Result<Line> {
+    let mut beziers: Vec<Line> = Vec::new();
+    let mut p0 = anchor;
+    for segment in points.chunks(6) {
+        let length = approx_cubic_bezier_aux(segment, p0, POLYLINE_N)?.euclidean_length();
+        println!("Length: {}", length);
+        let n = length / distance;
+        let approximation = approx_cubic_bezier_aux(segment, p0, n.round() as u32)?;
+        //println!("Approximation: {:?}", approximation);
+        beziers.push(approximation);
+        p0 = Point::new(p0.x() + segment[4], p0.y() + segment[5])?;
+    }
+
+    Ok(beziers.concat())
+}
+
+fn approximate_path(
+    attributes: Attributes,
+    layer: i32,
+    scaling: f32,
+    distance: f32,
+) -> Result<Polygon> {
+    let data = attributes
+        .get("d")
+        .ok_or_else(|| anyhow!("path sin atributo 'd'"))?;
+    let data =
+        Data::parse(data).context("En approximate_path() no se pudo parsear el atributo 'd'.")?;
+
+    let mut borders = vec![Line::new()];
+
+    for command in data.iter() {
+        match command {
+            Command::Move(Position::Relative, params) => {
+                println!("m command:\n\tx: {}\ty: {}\t", params[0], params[1],);
+                borders.push(vec![Point::new(params[0], params[1])?]);
+            }
+            c @ Command::Line(Position::Relative, params) => {
+                return Err(anyhow!("Path Error: path {:?} not implemented", c))
+            }
+            c @ Command::HorizontalLine(Position::Relative, params) => {
+                return Err(anyhow!("Path Error: path {:?} not implemented", c))
+            }
+            c @ Command::VerticalLine(Position::Relative, params) => {
+                return Err(anyhow!("Path Error: path {:?} not implemented", c))
+            }
+            c @ Command::CubicCurve(Position::Relative, params) => {
+                println!("c command");
+                let anchor = *(borders.last().ok_or_else(|| { anyhow!( "Llamado comando 'c' sin haber inicializado algún Line dentro de borders") })?
+                            .last().ok_or_else(|| { anyhow!("Llamado comando 'c' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')")})?);
+
+                borders
+                    .last_mut()
+                    .ok_or_else(|| {
+                        anyhow!(
+                        "Llamado comando 'c' sin haber inicializado algún Line dentro de borders"
+                    )
+                    })?
+                    .append(&mut approximate_cubic_beziers(params, anchor, distance)?);
+            }
+            c => return Err(anyhow!("!!!! PATH ERROR: Unhandled command: {:?}", c)),
+        }
+    }
+
+    Err(anyhow!(
+        "Esta función está incompleta y no se debe llamar: 'approximate_path()'"
+    ))
+}
+
 fn approximate_circle(
     attributes: Attributes,
     layer: i32,
@@ -207,8 +294,6 @@ fn approximate_ellipse(
     scaling: f32,
     distance: f32,
 ) -> Result<Polygon> {
-    // TODO: refactor the approximation to use less looping and more iterating
-
     let mut ellipse_poly = init_polygon(&attributes, layer)?;
 
     let center = Point::new(
@@ -281,14 +366,14 @@ fn approximate_ellipse(
 
     border.push(border[0]);
 
-    println!(
-        "Ellipse:\n\tcx:{}\tcy:{}\n\trx:{}\try:{}\n\tApprox: {:?}",
-        center.x(),
-        center.y(),
-        radius_x,
-        radius_y,
-        border,
-    );
+    // println!(
+    //     "Ellipse:\n\tcx:{}\tcy:{}\n\trx:{}\try:{}\n\tApprox: {:?}",
+    //     center.x(),
+    //     center.y(),
+    //     radius_x,
+    //     radius_y,
+    //     border,
+    // );
 
     ellipse_poly.add_border(border);
 

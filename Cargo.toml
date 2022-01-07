@@ -8,5 +8,5 @@ edition = "2018"
 [dependencies]
 sdl_wrapper = { git = "https://github.com/zkwinkle/sdl_wrapper" }
 svg = "0.10"
-anyhow = "1.0"
+anyhow = { version = "1.0", features = ["backtrace"] }
 itertools = "0.10"
