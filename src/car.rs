@@ -1,5 +1,3 @@
-#![allow(non_upper_case_globals)]
-
 // TODO: get rid of 'as' casting
 
 use anyhow::{anyhow, Context, Result};
@@ -79,9 +77,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
         }
     }
 
-    Err(anyhow!(
-        "Esta función está incompleta y no se debe llamar: 'parse_svg()'"
-    ))
+    Ok(car)
 }
 
 struct Style {
@@ -141,7 +137,7 @@ fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon> {
     )?;
 
     poly.set_stroke_color(style.stroke);
-    poly.set_fill_color(style.stroke);
+    poly.set_fill_color(style.fill);
     Ok(poly)
 }
 
@@ -150,10 +146,10 @@ fn approx_cubic_bezier_aux(segment: &[f32], anchor: Point, n: u32) -> Result<Lin
     let p1 = Point::new_unchecked(segment[0] + p0.x(), segment[1] + p0.y());
     let p2 = Point::new_unchecked(segment[2] + p0.x(), segment[3] + p0.y());
     let p3 = Point::new_unchecked(segment[4] + p0.x(), segment[5] + p0.y());
-    println!(
-        "Approximating curve:\n\tp0: {:?}\tp1: {:?}\n\tp2: {:?}\tp3: {:?}",
-        p0, p1, p2, p3
-    );
+    //println!(
+    //    "Approximating curve:\n\tp0: {:?}\tp1: {:?}\n\tp2: {:?}\tp3: {:?}",
+    //    p0, p1, p2, p3
+    //);
     let b = |t: f32| {
         Point::new(
             (1.0 - t).powi(3) * p0.x()
@@ -202,14 +198,10 @@ fn get_last_border_mut<'a>(borders: &'a mut Vec<Line>, command: &Command) -> Res
     })?)
 }
 
-fn approximate_straight_lines(
-    params: &Parameters,
-    borders: &Vec<Line>,
-    command: &Command,
-) -> Result<Line> {
+fn approximate_straight_lines(command: &Command, borders: &Vec<Line>) -> Result<Line> {
     match command {
         l @ Command::Line(Position::Relative, params) => {
-            println!("l command");
+            //println!("l command");
             (params.len() % 2 == 0)
                 .then(|| ())
                 .ok_or_else(|| anyhow!("Parámetros de comando 'l' no son múltiplos de 2"))?;
@@ -223,7 +215,7 @@ fn approximate_straight_lines(
                 .collect::<Result<Line>>()
         }
         h @ Command::HorizontalLine(Position::Relative, params) => {
-            println!("h command");
+            //println!("h command");
             let mut anchor = get_anchor(&borders, h)?;
             params
                 .iter()
@@ -234,7 +226,7 @@ fn approximate_straight_lines(
                 .collect::<Result<Line>>()
         }
         v @ Command::VerticalLine(Position::Relative, params) => {
-            println!("v command");
+            //println!("v command");
             let mut anchor = get_anchor(&borders, v)?;
             params
                 .iter()
@@ -270,12 +262,7 @@ fn approximate_path(
     for command in data.iter() {
         match command {
             m @ Command::Move(Position::Relative, params) => {
-                println!(
-                    "m command:\tx: {}\ty: {}\tborders.len()={}",
-                    params[0],
-                    params[1],
-                    borders.len()
-                );
+                //println!( "m command:\tx: {}\ty: {}\tborders.len()={}", params[0], params[1], borders.len());
                 let new_point = match borders.len() {
                     0 => Point::new(params[0], params[1]),
                     _ => {
@@ -285,20 +272,20 @@ fn approximate_path(
                 }?;
                 borders.push(vec![new_point]);
             }
-            line @ (Command::Line(Position::Relative, params)
-            | Command::HorizontalLine(Position::Relative, params)
-            | Command::VerticalLine(Position::Relative, params)) => {
-                let mut extension = approximate_straight_lines(params, &borders, line)?;
+            line @ (Command::Line(Position::Relative, _)
+            | Command::HorizontalLine(Position::Relative, _)
+            | Command::VerticalLine(Position::Relative, _)) => {
+                let mut extension = approximate_straight_lines(line, &borders)?;
                 get_last_border_mut(&mut borders, line)?.append(&mut extension);
             }
             c @ Command::CubicCurve(Position::Relative, params) => {
-                println!("c command");
+                //println!("c command");
                 let anchor = get_anchor(&borders, c)?;
                 get_last_border_mut(&mut borders, c)?
                     .append(&mut approximate_cubic_beziers(params, anchor, distance)?);
             }
             z @ Command::Close => {
-                println!("z command");
+                //println!("z command");
                 // Recordar que en un borde que se "completa" (meaning it forms a loop) su punto
                 // inicial y el final son el mismo punto
                 let border_start = *(borders.last().ok_or_else(|| { anyhow!( "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders", z) })?
@@ -313,7 +300,7 @@ fn approximate_path(
     let mut path_poly = init_polygon(&attributes, layer)?;
     path_poly.set_borders(borders);
 
-    println!("Path finished\n");
+    //println!("Path finished\n");
     Ok(path_poly.scale(scaling)?)
 }
 
@@ -469,7 +456,7 @@ fn init_svg<'l>(
     content: &'l mut String,
 ) -> Result<(Parser<'l>, Car, f32)> {
     // init car with dummy values
-    let mut car = Car {
+    let car = Car {
         polygons: Vec::new(),
         scene_size,
     };
