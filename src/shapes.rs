@@ -122,6 +122,10 @@ impl Polygon {
         self.borders.push(border);
     }
 
+    pub fn set_borders(&mut self, borders: Vec<Line>) {
+        self.borders = borders;
+    }
+
     pub fn get_borders(&self) -> &Vec<Line> {
         &self.borders
     }

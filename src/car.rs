@@ -177,7 +177,7 @@ fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) 
     let mut p0 = anchor;
     for segment in points.chunks(6) {
         let length = approx_cubic_bezier_aux(segment, p0, POLYLINE_N)?.euclidean_length();
-        println!("Length: {}", length);
+        //println!("Length: {}", length);
         let n = length / distance;
         let approximation = approx_cubic_bezier_aux(segment, p0, n.round() as u32)?;
         //println!("Approximation: {:?}", approximation);
@@ -186,6 +186,71 @@ fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) 
     }
 
     Ok(beziers.concat())
+}
+
+fn get_anchor(borders: &Vec<Line>, command: &Command) -> Result<Point> {
+    Ok(*(borders.last().ok_or_else(|| { anyhow!( "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders", command) })?
+            .last().ok_or_else(|| { anyhow!("Llamado comando '{:?}' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')", command)})?))
+}
+
+fn get_last_border_mut<'a>(borders: &'a mut Vec<Line>, command: &Command) -> Result<&'a mut Line> {
+    Ok(borders.last_mut().ok_or_else(|| {
+        anyhow!(
+            "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders",
+            command
+        )
+    })?)
+}
+
+fn approximate_straight_lines(
+    params: &Parameters,
+    borders: &Vec<Line>,
+    command: &Command,
+) -> Result<Line> {
+    match command {
+        l @ Command::Line(Position::Relative, params) => {
+            println!("l command");
+            (params.len() % 2 == 0)
+                .then(|| ())
+                .ok_or_else(|| anyhow!("Parámetros de comando 'l' no son múltiplos de 2"))?;
+            let mut anchor = get_anchor(&borders, l)?;
+            params
+                .chunks_exact(2)
+                .map(|p| {
+                    anchor = Point::new(anchor.x() + p[0], anchor.y() + p[1])?;
+                    Ok(anchor)
+                })
+                .collect::<Result<Line>>()
+        }
+        h @ Command::HorizontalLine(Position::Relative, params) => {
+            println!("h command");
+            let mut anchor = get_anchor(&borders, h)?;
+            params
+                .iter()
+                .map(|p| {
+                    anchor = Point::new(anchor.x() + p, anchor.y())?;
+                    Ok(anchor)
+                })
+                .collect::<Result<Line>>()
+        }
+        v @ Command::VerticalLine(Position::Relative, params) => {
+            println!("v command");
+            let mut anchor = get_anchor(&borders, v)?;
+            params
+                .iter()
+                .map(|p| {
+                    anchor = Point::new(anchor.x(), anchor.y() + p)?;
+                    Ok(anchor)
+                })
+                .collect::<Result<Line>>()
+        }
+        c => {
+            return Err(anyhow!(
+                "?!?! LINE ERROR: Unhandled command: {:?} (this shouldn't be possible)",
+                c
+            ))
+        }
+    }
 }
 
 fn approximate_path(
@@ -200,44 +265,56 @@ fn approximate_path(
     let data =
         Data::parse(data).context("En approximate_path() no se pudo parsear el atributo 'd'.")?;
 
-    let mut borders = vec![Line::new()];
+    let mut borders = Vec::<Line>::new();
 
     for command in data.iter() {
         match command {
-            Command::Move(Position::Relative, params) => {
-                println!("m command:\n\tx: {}\ty: {}\t", params[0], params[1],);
-                borders.push(vec![Point::new(params[0], params[1])?]);
+            m @ Command::Move(Position::Relative, params) => {
+                println!(
+                    "m command:\tx: {}\ty: {}\tborders.len()={}",
+                    params[0],
+                    params[1],
+                    borders.len()
+                );
+                let new_point = match borders.len() {
+                    0 => Point::new(params[0], params[1]),
+                    _ => {
+                        let anchor = get_anchor(&borders, m)?;
+                        Point::new(anchor.x() + params[0], anchor.y() + params[1])
+                    }
+                }?;
+                borders.push(vec![new_point]);
             }
-            c @ Command::Line(Position::Relative, params) => {
-                return Err(anyhow!("Path Error: path {:?} not implemented", c))
-            }
-            c @ Command::HorizontalLine(Position::Relative, params) => {
-                return Err(anyhow!("Path Error: path {:?} not implemented", c))
-            }
-            c @ Command::VerticalLine(Position::Relative, params) => {
-                return Err(anyhow!("Path Error: path {:?} not implemented", c))
+            line @ (Command::Line(Position::Relative, params)
+            | Command::HorizontalLine(Position::Relative, params)
+            | Command::VerticalLine(Position::Relative, params)) => {
+                let mut extension = approximate_straight_lines(params, &borders, line)?;
+                get_last_border_mut(&mut borders, line)?.append(&mut extension);
             }
             c @ Command::CubicCurve(Position::Relative, params) => {
                 println!("c command");
-                let anchor = *(borders.last().ok_or_else(|| { anyhow!( "Llamado comando 'c' sin haber inicializado algún Line dentro de borders") })?
-                            .last().ok_or_else(|| { anyhow!("Llamado comando 'c' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')")})?);
-
-                borders
-                    .last_mut()
-                    .ok_or_else(|| {
-                        anyhow!(
-                        "Llamado comando 'c' sin haber inicializado algún Line dentro de borders"
-                    )
-                    })?
+                let anchor = get_anchor(&borders, c)?;
+                get_last_border_mut(&mut borders, c)?
                     .append(&mut approximate_cubic_beziers(params, anchor, distance)?);
+            }
+            z @ Command::Close => {
+                println!("z command");
+                // Recordar que en un borde que se "completa" (meaning it forms a loop) su punto
+                // inicial y el final son el mismo punto
+                let border_start = *(borders.last().ok_or_else(|| { anyhow!( "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders", z) })?
+                    .first().ok_or_else(|| { anyhow!("Llamado comando '{:?}' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')", z)})?);
+
+                get_last_border_mut(&mut borders, z)?.push(border_start);
             }
             c => return Err(anyhow!("!!!! PATH ERROR: Unhandled command: {:?}", c)),
         }
     }
 
-    Err(anyhow!(
-        "Esta función está incompleta y no se debe llamar: 'approximate_path()'"
-    ))
+    let mut path_poly = init_polygon(&attributes, layer)?;
+    path_poly.set_borders(borders);
+
+    println!("Path finished\n");
+    Ok(path_poly.scale(scaling)?)
 }
 
 fn approximate_circle(
@@ -281,6 +358,7 @@ fn approximate_circle(
         })
         .collect::<Result<Line>>()?;
 
+    // Agregar punto inical al final para completar círculo
     border.push(border[0]);
 
     circle_poly.add_border(border);
@@ -364,6 +442,7 @@ fn approximate_ellipse(
         run += dp(theta);
     }
 
+    // Agregar punto inicial al final para aproximar círculo
     border.push(border[0]);
 
     // println!(
