@@ -17,12 +17,10 @@ use svg::parser::{Event, Parser};
 use crate::constants::POLYLINE_N;
 use crate::shapes::{Color, Line, LineMethods, Point, Polygon};
 
-pub struct Car {
-    polygons: Vec<Polygon>,
-    scene_size: u32,
-}
+type Car = Vec<Polygon>;
 
-/// Function made to specifically parse the "car.svg" file and return a "Car" object.
+/// Function made to specifically parse the "car.svg" file and return a "Car" object (which is just
+/// Vec<Polygon>.
 pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
     let mut content = String::new();
     let (parser, mut car, scaling) = init_svg(path, scene_size, &mut content)?;
@@ -49,7 +47,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
                     .ok_or_else(|| anyhow!("path no trae id"))?;
                 println!("Path id: {}", id);
                 let poly_path = approximate_path(attributes, layer, scaling, distance)?;
-                car.polygons.push(poly_path);
+                car.push(poly_path);
             }
             Event::Tag(tag::Circle, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
@@ -57,7 +55,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
                     .ok_or_else(|| anyhow!("circle no trae id"))?;
                 println!("Circle id: {}", id);
                 let poly_circle = approximate_circle(attributes, layer, scaling, distance)?;
-                car.polygons.push(poly_circle);
+                car.push(poly_circle);
             }
             Event::Tag(tag::Ellipse, Type::Empty | Type::Start, attributes) => {
                 let id = attributes
@@ -65,7 +63,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
                     .ok_or_else(|| anyhow!("ellipse no trae id"))?;
                 println!("Ellipse id: {}", id);
                 let poly_ellipse = approximate_ellipse(attributes, layer, scaling, distance)?;
-                car.polygons.push(poly_ellipse);
+                car.push(poly_ellipse);
             }
             // unhandled
             Event::Tag(tag, Type::Start | Type::Empty, _) => {
@@ -456,10 +454,7 @@ fn init_svg<'l>(
     content: &'l mut String,
 ) -> Result<(Parser<'l>, Car, f32)> {
     // init car with dummy values
-    let car = Car {
-        polygons: Vec::new(),
-        scene_size,
-    };
+    let car: Car = Vec::new();
 
     let mut parser: Parser = svg::open(path, content)?;
 

@@ -1,3 +1,5 @@
+//! Mathematical representations of Points, Lines, and Polygons
+
 use crate::constants::SCENE_SIZE;
 use anyhow::{anyhow, Result};
 
