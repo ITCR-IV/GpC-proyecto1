@@ -133,7 +133,9 @@ impl LineMethods for Line {
         intersection: fn(Point, Point, f32) -> Point,
         inside_edge: fn(&Window, Point, f32) -> bool,
     ) -> Line {
-        self.windows(2)
+        //println!("------------------------\nInput: {:?}", self);
+        let mut clipped = self
+            .windows(2)
             .fold(Vec::with_capacity(self.len()), |mut clip, s| {
                 match (
                     inside_edge(window, s[0], edge),
@@ -147,7 +149,13 @@ impl LineMethods for Line {
                     (false, false) => (),
                 };
                 clip
-            })
+            });
+        match clipped.last() {
+            Some(p) => clipped.insert(0, *p),
+            None => (),
+        }
+        //println!("Output: {:?}\n------------------------\n", clipped);
+        clipped
     }
 }
 
@@ -217,5 +225,9 @@ impl Polygon {
             }
         }
         Ok(self)
+    }
+
+    pub fn id(&self) -> &String {
+        &self.id
     }
 }

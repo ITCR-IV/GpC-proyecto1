@@ -21,8 +21,8 @@ fn main() -> Result<()> {
 }
 
 async fn screen_loop(mut window: Window, car: Car) -> Result<()> {
+    window.update(&car).await?;
     'main: loop {
-        window.update(&car).await?;
         // Manejo de eventos
         for event in window.get_events() {
             match event {

@@ -278,6 +278,20 @@ fn approximate_path(
                     }
                 }?;
                 borders.push(vec![new_point]);
+                if params.len() > 2 {
+                    let mut extension = approximate_straight_lines(
+                        &Command::Line(
+                            Position::Relative,
+                            Parameters::from({
+                                let mut vec = Vec::with_capacity(params.len() - 2);
+                                vec.extend_from_slice(&params[2..]);
+                                vec
+                            }),
+                        ),
+                        &borders,
+                    )?;
+                    get_last_border_mut(&mut borders, m)?.append(&mut extension);
+                }
             }
             line @ (Command::Line(Position::Relative, _)
             | Command::HorizontalLine(Position::Relative, _)
@@ -323,20 +337,17 @@ fn approximate_circle(
         attributes
             .get("cx")
             .ok_or_else(|| anyhow!("circle no trae 'cx'"))?
-            .parse::<f32>()?
-            * scaling,
+            .parse::<f32>()?,
         attributes
             .get("cy")
             .ok_or_else(|| anyhow!("circle no trae 'cy'"))?
-            .parse::<f32>()?
-            * scaling,
+            .parse::<f32>()?,
     )?;
 
     let radius: f32 = attributes
         .get("r")
         .ok_or_else(|| anyhow!("circle no trae 'r'"))?
-        .parse::<f32>()?
-        * scaling;
+        .parse::<f32>()?;
 
     let perimeter: f32 = 2.0 * radius * PI;
     let num_points: u32 = (perimeter / distance).round() as u32;
@@ -357,7 +368,7 @@ fn approximate_circle(
 
     circle_poly.add_border(border);
 
-    Ok(circle_poly)
+    circle_poly.scale(scaling)
 }
 
 fn approximate_ellipse(
@@ -372,25 +383,21 @@ fn approximate_ellipse(
         attributes
             .get("cx")
             .ok_or_else(|| anyhow!("ellipse no trae 'cx'"))?
-            .parse::<f32>()?
-            * scaling,
+            .parse::<f32>()?,
         attributes
             .get("cy")
             .ok_or_else(|| anyhow!("ellipse no trae 'cy'"))?
-            .parse::<f32>()?
-            * scaling,
+            .parse::<f32>()?,
     )?;
 
     let radius_x: f32 = attributes
         .get("rx")
         .ok_or_else(|| anyhow!("ellipse no trae 'rx'"))?
-        .parse::<f32>()?
-        * scaling;
+        .parse::<f32>()?;
     let radius_y: f32 = attributes
         .get("ry")
         .ok_or_else(|| anyhow!("ellipse no trae 'ry'"))?
-        .parse::<f32>()?
-        * scaling;
+        .parse::<f32>()?;
 
     let perimeter: f32 = 2.0 * PI * ((radius_x.powi(2) + radius_y.powi(2)) / 2.0).sqrt();
     let num_points: u32 = (perimeter / distance).round() as u32;
@@ -450,7 +457,7 @@ fn approximate_ellipse(
 
     ellipse_poly.add_border(border);
 
-    Ok(ellipse_poly)
+    ellipse_poly.scale(scaling)
 }
 
 /// This function parse the initial lines of the "car.svg" file, ignoring anything before the <svg>

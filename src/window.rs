@@ -118,6 +118,7 @@ impl Window {
     fn clip_car(&self, car: &Car) -> Vec<Polygon> {
         car.iter()
             .fold(Vec::with_capacity(car.len()), |mut clipped_polys, poly| {
+                //println!("id: {}", poly.id());
                 let borders = poly.get_borders();
                 let borders = borders.iter().fold(
                     Vec::with_capacity(borders.len()),
@@ -127,25 +128,25 @@ impl Window {
                                 self.max_point.x(),
                                 self,
                                 intersection_vertical,
-                                inside_max_edge,
+                                Self::inside_max_edge,
                             )
                             .clip_border(
                                 self.max_point.y(),
                                 self,
                                 intersection_horizontal,
-                                inside_max_edge,
+                                Self::inside_max_edge,
                             )
                             .clip_border(
                                 self.min_point.x(),
                                 self,
                                 intersection_vertical,
-                                inside_min_edge,
+                                Self::inside_min_edge,
                             )
                             .clip_border(
                                 self.min_point.y(),
                                 self,
                                 intersection_horizontal,
-                                inside_min_edge,
+                                Self::inside_min_edge,
                             );
                         clipped_borders.push(clipped_border);
                         clipped_borders
@@ -162,22 +163,23 @@ impl Window {
             && point.y() >= self.min_point.y()
             && point.y() <= self.max_point.y()
     }
-}
 
-fn inside_min_edge(window: &Window, point: Point, edge: f32) -> bool {
-    match edge {
-            edge if edge == window.min_point.x() => point.x() >= edge,
-            edge if edge == window.min_point.y() => point.y() >= edge,
+    fn inside_min_edge(&self, point: Point, edge: f32) -> bool {
+        match edge {
+            edge if edge == self.min_point.x() => point.x() >= edge,
+            edge if edge == self.min_point.y() => point.y() >= edge,
             weird_edge => panic!("The edge given to inside_min_edge() doesn't match any of the current window min edges (edge = '{}')", weird_edge)
         }
-}
-fn inside_max_edge(window: &Window, point: Point, edge: f32) -> bool {
-    match edge {
-            edge if edge == window.max_point.x() => point.x() <= edge,
-            edge if edge == window.max_point.y() => point.y() <= edge,
+    }
+    fn inside_max_edge(&self, point: Point, edge: f32) -> bool {
+        match edge {
+            edge if edge == self.max_point.x() => point.x() <= edge,
+            edge if edge == self.max_point.y() => point.y() <= edge,
             weird_edge => panic!("The edge given to inside_max_edge() doesn't match any of the current window max edges (edge = '{}')", weird_edge)
         }
+    }
 }
+
 fn intersection_horizontal(p0: Point, p1: Point, y_edge: f32) -> Point {
     let m = (p1.y() - p0.y()) / (p1.x() - p0.x());
     let b = p0.y() - m * p0.x();
