@@ -10,7 +10,9 @@ pub const WINDOW_WIDTH: u32 = 1000;
 pub const SCENE_SIZE: u32 = 1000;
 
 /// Point polling spacing
-pub const POINT_SPACING: f32 = 1.0;
+pub const POINT_SPACING: f32 = 0.1;
 
 /// Bezier polyline approximation for then finding equidistant points
 pub const POLYLINE_N: u32 = 1000;
+
+pub const BACKGROUND_COLOR: &str = "#77a8c9";

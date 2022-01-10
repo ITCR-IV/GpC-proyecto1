@@ -17,7 +17,7 @@ use svg::parser::{Event, Parser};
 use crate::constants::POLYLINE_N;
 use crate::shapes::{Color, Line, LineMethods, Point, Polygon};
 
-type Car = Vec<Polygon>;
+pub type Car = Vec<Polygon>;
 
 /// Function made to specifically parse the "car.svg" file and return a "Car" object (which is just
 /// Vec<Polygon>.
@@ -75,7 +75,20 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
         }
     }
 
+    println!(
+        "Car was approximated using {} vertices!",
+        count_vertices(&car)
+    );
+
     Ok(car)
+}
+
+pub fn count_vertices(car: &Car) -> usize {
+    car.iter()
+        .map(|p| p.get_borders())
+        .flatten()
+        .flatten()
+        .count()
 }
 
 struct Style {

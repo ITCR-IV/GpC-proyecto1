@@ -1,6 +1,7 @@
 //! Mathematical representations of Points, Lines, and Polygons
 
 use crate::constants::SCENE_SIZE;
+use crate::window::Window;
 use anyhow::{anyhow, Result};
 
 /// Important to note that this is a point in universal, continous coordinates.
@@ -70,6 +71,16 @@ impl Color {
             ))
         }
     }
+
+    pub fn r(&self) -> f32 {
+        self.r
+    }
+    pub fn g(&self) -> f32 {
+        self.g
+    }
+    pub fn b(&self) -> f32 {
+        self.b
+    }
 }
 
 /// Note that a 'Line' isn't a straight 2-point line. It's composed of an arbitrary amount of
@@ -77,8 +88,35 @@ impl Color {
 /// line circles back then the last Point will be equal to the first one.
 pub type Line = Vec<Point>;
 
+/// Represents a straight segment, with (x0, y0) being the starting point and (x1, y1) the ending point.
+#[derive(Debug)]
+pub struct Segment {
+    pub x0: u32,
+    pub y0: u32,
+    pub x1: u32,
+    pub y1: u32,
+}
+
+//impl Segment {
+//    pub fn new(p0: Point, p1: Point) -> Segment {
+//        Segment {
+//            x0: p0.x(),
+//            y0: p0.y(),
+//            x1: p1.x(),
+//            y1: p1.y(),
+//        }
+//    }
+//}
+
 pub trait LineMethods {
     fn euclidean_length(&self) -> f32;
+    fn clip_border(
+        &self,
+        edge: f32,
+        window: &Window,
+        intersection: fn(Point, Point, f32) -> Point,
+        inside_edge: fn(&Window, Point, f32) -> bool,
+    ) -> Line;
 }
 
 impl LineMethods for Line {
@@ -86,6 +124,30 @@ impl LineMethods for Line {
         self.windows(2)
             .map(|w| ((w[1].x() - w[0].x()).powi(2) + (w[1].y() - w[0].y()).powi(2)).sqrt())
             .sum()
+    }
+
+    fn clip_border(
+        &self,
+        edge: f32,
+        window: &Window,
+        intersection: fn(Point, Point, f32) -> Point,
+        inside_edge: fn(&Window, Point, f32) -> bool,
+    ) -> Line {
+        self.windows(2)
+            .fold(Vec::with_capacity(self.len()), |mut clip, s| {
+                match (
+                    inside_edge(window, s[0], edge),
+                    inside_edge(window, s[1], edge),
+                ) {
+                    (true, true) => clip.push(s[1]),
+                    (true, false) => clip.push(intersection(s[0], s[1], edge)),
+                    (false, true) => {
+                        clip.extend_from_slice(&[intersection(s[0], s[1], edge), s[1]])
+                    }
+                    (false, false) => (),
+                };
+                clip
+            })
     }
 }
 
@@ -117,6 +179,14 @@ impl Polygon {
             fill_color: None,
             layer,
             id,
+        }
+    }
+
+    pub fn new_copy_attributes(&self, borders: Vec<Line>) -> Polygon {
+        Polygon {
+            id: self.id.clone(),
+            borders,
+            ..*self
         }
     }
 

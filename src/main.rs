@@ -4,7 +4,9 @@ mod shapes;
 mod window;
 
 use anyhow::Result;
+use car::Car;
 use constants::{POINT_SPACING, SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
+use futures::executor::block_on;
 use sdl_wrapper::{Event, Keycode};
 use window::Window;
 
@@ -13,11 +15,14 @@ fn main() -> Result<()> {
     let car = car::parse_svg(path, SCENE_SIZE, POINT_SPACING)?;
     let mut window = Window::new("2D World", WINDOW_WIDTH, WINDOW_HEIGHT)?;
 
-    'main: loop {
-        window
-            .present()
-            .unwrap_or_else(|err| println!("Error while presenting screen: {}", err));
+    block_on(screen_loop(window, car))?;
 
+    Ok(())
+}
+
+async fn screen_loop(mut window: Window, car: Car) -> Result<()> {
+    'main: loop {
+        window.update(&car).await?;
         // Manejo de eventos
         for event in window.get_events() {
             match event {
@@ -31,6 +36,5 @@ fn main() -> Result<()> {
             }
         }
     }
-
     Ok(())
 }
