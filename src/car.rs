@@ -84,11 +84,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
 }
 
 pub fn count_vertices(car: &Car) -> usize {
-    car.iter()
-        .map(|p| p.get_borders())
-        .flatten()
-        .flatten()
-        .count()
+    car.iter().flat_map(|p| p.get_borders()).flatten().count()
 }
 
 struct Style {
@@ -195,28 +191,28 @@ fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) 
     Ok(beziers.concat())
 }
 
-fn get_anchor(borders: &Vec<Line>, command: &Command) -> Result<Point> {
+fn get_anchor(borders: &[Line], command: &Command) -> Result<Point> {
     Ok(*(borders.last().ok_or_else(|| { anyhow!( "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders", command) })?
             .last().ok_or_else(|| { anyhow!("Llamado comando '{:?}' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')", command)})?))
 }
 
 fn get_last_border_mut<'a>(borders: &'a mut Vec<Line>, command: &Command) -> Result<&'a mut Line> {
-    Ok(borders.last_mut().ok_or_else(|| {
+    borders.last_mut().ok_or_else(|| {
         anyhow!(
             "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders",
             command
         )
-    })?)
+    })
 }
 
-fn approximate_straight_lines(command: &Command, borders: &Vec<Line>) -> Result<Line> {
+fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Line> {
     match command {
         l @ Command::Line(Position::Relative, params) => {
             //println!("l command");
             (params.len() % 2 == 0)
                 .then(|| ())
                 .ok_or_else(|| anyhow!("Parámetros de comando 'l' no son múltiplos de 2"))?;
-            let mut anchor = get_anchor(&borders, l)?;
+            let mut anchor = get_anchor(borders, l)?;
             params
                 .chunks_exact(2)
                 .map(|p| {
@@ -227,7 +223,7 @@ fn approximate_straight_lines(command: &Command, borders: &Vec<Line>) -> Result<
         }
         h @ Command::HorizontalLine(Position::Relative, params) => {
             //println!("h command");
-            let mut anchor = get_anchor(&borders, h)?;
+            let mut anchor = get_anchor(borders, h)?;
             params
                 .iter()
                 .map(|p| {
@@ -238,7 +234,7 @@ fn approximate_straight_lines(command: &Command, borders: &Vec<Line>) -> Result<
         }
         v @ Command::VerticalLine(Position::Relative, params) => {
             //println!("v command");
-            let mut anchor = get_anchor(&borders, v)?;
+            let mut anchor = get_anchor(borders, v)?;
             params
                 .iter()
                 .map(|p| {
@@ -312,7 +308,7 @@ fn approximate_path(
     path_poly.set_borders(borders);
 
     //println!("Path finished\n");
-    Ok(path_poly.scale(scaling)?)
+    path_poly.scale(scaling)
 }
 
 fn approximate_circle(

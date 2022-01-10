@@ -7,6 +7,8 @@ use crate::car::Car;
 use crate::constants::{BACKGROUND_COLOR, SCENE_SIZE};
 use crate::shapes::{Color, Line, LineMethods, Point, Polygon, Segment};
 
+use std::cmp::Ordering;
+
 pub enum DisplayMode {
     NoColor,
     ColorFill,
@@ -45,22 +47,24 @@ impl Window {
         };
 
         // center window in the scene
-        let window = if height > width {
-            let spacing = (SCENE_SIZE as f32 - width as f32) / 2.0;
-            Window {
-                min_point: Point::new(spacing, 0.0)?,
-                max_point: Point::new(spacing + width as f32, SCENE_SIZE as f32)?,
-                ..window
+        let window = match height.cmp(&width) {
+            Ordering::Greater => {
+                let spacing = (SCENE_SIZE as f32 - width as f32) / 2.0;
+                Window {
+                    min_point: Point::new(spacing, 0.0)?,
+                    max_point: Point::new(spacing + width as f32, SCENE_SIZE as f32)?,
+                    ..window
+                }
             }
-        } else if height < width {
-            let spacing = (SCENE_SIZE as f32 - width as f32) / 2.0;
-            Window {
-                min_point: Point::new(0.0, spacing)?,
-                max_point: Point::new(SCENE_SIZE as f32, spacing + height as f32)?,
-                ..window
+            Ordering::Less => {
+                let spacing = (SCENE_SIZE as f32 - width as f32) / 2.0;
+                Window {
+                    min_point: Point::new(0.0, spacing)?,
+                    max_point: Point::new(SCENE_SIZE as f32, spacing + height as f32)?,
+                    ..window
+                }
             }
-        } else {
-            window
+            Ordering::Equal => window,
         };
 
         Ok(window)
@@ -87,10 +91,10 @@ impl Window {
 
         // Then paint car
         // TODO: remove empty shit (polygons may well be fully outside of window)
-        let cut_polys: Vec<Polygon> = self.clip_car(&car);
+        let cut_polys: Vec<Polygon> = self.clip_car(car);
         for poly in cut_polys {
-            for Line in poly.get_borders() {
-                for segment in Line.windows(2) {
+            for line in poly.get_borders() {
+                for segment in line.windows(2) {
                     let segment = Segment {
                         x0: segment[0].x().round() as u32,
                         x1: segment[1].x().round() as u32,
@@ -121,25 +125,25 @@ impl Window {
                         let clipped_border = border
                             .clip_border(
                                 self.max_point.x(),
-                                &self,
+                                self,
                                 intersection_vertical,
                                 inside_max_edge,
                             )
                             .clip_border(
                                 self.max_point.y(),
-                                &self,
+                                self,
                                 intersection_horizontal,
                                 inside_max_edge,
                             )
                             .clip_border(
                                 self.min_point.x(),
-                                &self,
+                                self,
                                 intersection_vertical,
                                 inside_min_edge,
                             )
                             .clip_border(
                                 self.min_point.y(),
-                                &self,
+                                self,
                                 intersection_horizontal,
                                 inside_min_edge,
                             );

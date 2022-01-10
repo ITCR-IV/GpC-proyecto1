@@ -13,7 +13,7 @@ use window::Window;
 fn main() -> Result<()> {
     let path = "images/car.svg";
     let car = car::parse_svg(path, SCENE_SIZE, POINT_SPACING)?;
-    let mut window = Window::new("2D World", WINDOW_WIDTH, WINDOW_HEIGHT)?;
+    let window = Window::new("2D World", WINDOW_WIDTH, WINDOW_HEIGHT)?;
 
     block_on(screen_loop(window, car))?;
 
