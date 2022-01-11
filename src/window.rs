@@ -133,6 +133,7 @@ impl Window {
     }
 
     fn no_color_draw(&mut self, fb_polys: &[Polygon<Framebuffer>]) {
+        self.screen.set_color(0.0, 0.0, 0.0);
         for poly in fb_polys {
             for line in poly.get_borders() {
                 for segment in line.windows(2) {
@@ -155,14 +156,21 @@ impl Window {
                     continue 'polys;
                 }
 
-                let sl_data = ScanlineData::new(poly);
                 // fill shapes
+                if let Some(color) = poly.get_fill_color() {
+                    self.screen.set_color(color.r(), color.g(), color.b());
+                    let sl_data = ScanlineData::new(poly);
+                    if let Ok(data) = sl_data {
+                        scanline(&mut self.screen, data)
+                    };
+                }
 
                 // draw strokes
-                for line in poly.get_borders() {
-                    for segment in line.windows(2) {
-                        if let Some(color) = poly.get_stroke_color() {
-                            self.screen.set_color(color.r(), color.g(), color.b());
+                if let Some(color) = poly.get_stroke_color() {
+                    self.screen.set_color(color.r(), color.g(), color.b());
+
+                    for line in poly.get_borders() {
+                        for segment in line.windows(2) {
                             let segment = Segment {
                                 x0: segment[0].x(),
                                 x1: segment[1].x(),
@@ -549,21 +557,25 @@ struct ScanlineData<'a> {
     deltas: Vec<f32>,
     active_borders: Vec<usize>,
     polygon: &'a Polygon<Framebuffer>,
-    next_intersect: Framebuffer,
+    next_intersects: Vec<f32>,
 }
 
 impl<'a> ScanlineData<'a> {
-    fn new(fb_polygon: &'a Polygon<Framebuffer>) -> Self {
+    fn new(fb_polygon: &'a Polygon<Framebuffer>) -> Result<Self> {
         let mut borders: Vec<Segment> = fb_polygon
             .get_borders()
             .iter()
             .flat_map(|border| {
-                border.windows(2).map(|segment| Segment {
-                    x0: segment[0].x(),
-                    x1: segment[1].x(),
-                    y0: segment[0].y(),
-                    y1: segment[1].y(),
-                })
+                border
+                    .windows(2)
+                    .map(|segment| Segment {
+                        x0: segment[0].x(),
+                        x1: segment[1].x(),
+                        y0: segment[0].y(),
+                        y1: segment[1].y(),
+                    })
+                    //filter out horizontal lines
+                    .filter(|segment| segment.y0 != segment.y1)
             })
             .collect::<Vec<Segment>>();
 
@@ -573,10 +585,19 @@ impl<'a> ScanlineData<'a> {
         let deltas: Vec<f32> = borders
             .iter()
             .map(|border| {
-                1.0 / ((border.y1 as f32 - border.y0 as f32)
-                    / (border.x1 as f32 - border.x0 as f32))
+                (border.x1 as f32 - border.x0 as f32) / (border.y1 as f32 - border.y0 as f32)
             })
             .collect();
+
+        //for delta in deltas.iter() {
+        //    if delta.is_infinite() || delta.is_nan() {
+        //        println!("The bad thing is happening: {}", delta);
+        //    }
+        //}
+
+        if borders.is_empty() {
+            return Err(anyhow!("Border segments was somehow empty"));
+        }
 
         let mut active_borders = Vec::new();
         let y_max = borders.first().expect("En método ScanlineData::new() de alguna manera el vector de bordes no tiene elementos").y_max();
@@ -587,16 +608,148 @@ impl<'a> ScanlineData<'a> {
                 break;
             }
         }
-        let x0 = borders.first().expect("En método ScanlineData::new() de alguna manera el vector de bordes no tiene elementos").x_of_y_max();
+        let next_intersects = borders
+            .iter()
+            .map(|border| border.x_of_y_max() as f32)
+            .collect();
 
-        ScanlineData {
+        Ok(ScanlineData {
             borders,
             deltas,
             active_borders,
             polygon: fb_polygon,
-            next_intersect: x0,
-        }
+            next_intersects,
+        })
     }
 }
 
-fn scanline(screen: &mut ScreenContextManager, sl_data: ScanlineData) {}
+fn scanline(screen: &mut ScreenContextManager, mut sl_data: ScanlineData) {
+    let mut scanline = sl_data
+        .borders
+        .first()
+        .expect("En método scanline() por alguna razón el vector de bordes está vacío")
+        .y_max() as i32;
+
+    // We initialize intersections as a mutable variable outside the loop so that only one
+    // allocation has to ever be done for it
+    let mut intersections: Vec<Framebuffer> = Vec::with_capacity(sl_data.borders.len());
+
+    let y_maxs: Vec<Framebuffer> = sl_data.borders.iter().map(|s| s.y_max()).collect();
+    let y_mins: Vec<Framebuffer> = sl_data.borders.iter().map(|s| s.y_min()).collect();
+
+    let y_min = y_mins
+        .iter()
+        .min()
+        .expect("El vecto de ymins tampoco debería estar vacío");
+
+    // Lugares donde dos segmentos se juntan y no son max/min
+    let count_as_one: Vec<Point<Framebuffer>> = sl_data
+        .borders
+        .windows(2)
+        .filter_map(|window| {
+            if window[0].x1 == window[1].x0 && window[0].y1 == window[1].y0 {
+                match (
+                    window[0].y0.cmp(&window[0].y1),
+                    window[1].y1.cmp(&window[1].y0),
+                ) {
+                    (Ordering::Less, Ordering::Less) => None,
+                    (Ordering::Greater, Ordering::Greater) => None,
+                    (Ordering::Less, Ordering::Greater) => Some(
+                        Point::<Framebuffer>::new(window[0].x1, window[0].y1).expect("why god why"),
+                    ),
+                    (Ordering::Greater, Ordering::Less) => Some(
+                        Point::<Framebuffer>::new(window[0].x1, window[0].y1).expect("please istg"),
+                    ),
+                    (_, _) => {
+                        println!("Weird bad thing!!");
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // scanline es i32 para que pueda valer menos de 0, ya que a veces y_min=0
+    while scanline >= *y_min as i32 {
+        // Activar bordes
+        let start_i = *(sl_data.active_borders.last().unwrap_or(&0_usize));
+        sl_data.active_borders.extend(
+            y_maxs[start_i..]
+                .iter()
+                .zip(start_i..sl_data.borders.len())
+                .take_while(|(ymax, _)| **ymax >= scanline as Framebuffer)
+                .filter(|(ymax, _)| **ymax == scanline as Framebuffer)
+                .map(|(_, i)| i),
+        );
+
+        // Calcular intersecciones
+        intersections.clear();
+        intersections.extend(
+            sl_data
+                .active_borders
+                .iter()
+                .map(|i| sl_data.next_intersects[*i].round() as Framebuffer),
+        );
+
+        // Ordenamos las intersecciones
+        intersections.sort_unstable();
+
+        let mut paint = true;
+        // Pintamos de forma alternada
+        for segment in intersections.windows(2) {
+            if paint {
+                paint_scanline(screen, scanline as Framebuffer, segment[0], segment[1]);
+            }
+            //paint = !paint;
+            if segment[0] == segment[1] {
+                // if it's not a "local min" or "local max" then we flip paint back
+                let x = segment[0];
+                if x >= 1000 || scanline as Framebuffer >= 1000 {
+                    println!("X: {}\t Y: {}", x, scanline);
+                }
+                //paint = !paint;
+
+                if count_as_one.contains(
+                    &Point::<Framebuffer>::new(x, scanline as Framebuffer).expect("uggo mistake"),
+                ) {
+                    //println!("X: {}\t Y: {}", x, scanline);
+                    //paint = !paint
+                }
+            }
+        }
+
+        // Desactivamos bordes
+        sl_data
+            .active_borders
+            .retain(|i| y_mins[*i] < scanline as Framebuffer);
+
+        // Calculamos siguientes intersecciones
+        for i in sl_data.active_borders.iter() {
+            let new_x =
+                (sl_data.next_intersects[*i] - sl_data.deltas[*i]).min((WINDOW_WIDTH - 1) as f32);
+            sl_data.next_intersects[*i] = new_x;
+        }
+
+        scanline -= 1;
+    }
+}
+
+enum SharedVerticeType {
+    Max,
+    Min,
+    Other,
+    Init,
+}
+
+fn paint_scanline(
+    screen: &mut ScreenContextManager,
+    y: Framebuffer,
+    x0: Framebuffer,
+    x1: Framebuffer,
+) {
+    for x in x0..x1 {
+        screen.plot_pixel(x, y);
+    }
+}
