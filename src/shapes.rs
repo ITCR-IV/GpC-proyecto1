@@ -1,11 +1,11 @@
 //! Mathematical representations of Points, Lines, and Polygons
 
-use crate::constants::SCENE_SIZE;
+use crate::constants::{SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::window::Window;
 use anyhow::{anyhow, Result};
 
 /// Important to note that this is a point in universal, continous coordinates.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Point<T> {
     x: T,
     y: T,
@@ -25,20 +25,30 @@ fn check_ranges<N: PartialOrd + ToString>(values: Vec<N>, min: N, max: N) -> Res
     }
 }
 
+impl Point<Framebuffer> {
+    pub fn new(x: Framebuffer, y: Framebuffer) -> Result<Point<Framebuffer>> {
+        check_ranges(vec![x], 0, WINDOW_WIDTH - 1)?;
+        check_ranges(vec![y], 0, WINDOW_HEIGHT - 1)?;
+        Ok(Point { x, y })
+    }
+}
+
 impl Point<Universal> {
     pub fn new(x: Universal, y: Universal) -> Result<Point<Universal>> {
         check_ranges(vec![x, y], 0.0, SCENE_SIZE as Universal)?;
         Ok(Point { x, y })
     }
+}
 
-    pub fn new_unchecked(x: Universal, y: Universal) -> Point<Universal> {
+impl<T: Copy> Point<T> {
+    pub fn new_unchecked(x: T, y: T) -> Point<T> {
         Point { x, y }
     }
 
-    pub fn x(&self) -> Universal {
+    pub fn x(&self) -> T {
         self.x
     }
-    pub fn y(&self) -> Universal {
+    pub fn y(&self) -> T {
         self.y
     }
 }
@@ -118,10 +128,10 @@ pub trait LineMethods<T> {
 pub trait LineClip {
     fn clip_border(
         &self,
-        edge: f32,
+        edge: Universal,
         window: &Window,
-        intersection: fn(Point<Universal>, Point<Universal>, f32) -> Point<Universal>,
-        inside_edge: fn(&Window, Point<Universal>, f32) -> bool,
+        intersection: fn(Point<Universal>, Point<Universal>, Universal) -> Point<Universal>,
+        inside_edge: fn(&Window, Point<Universal>, Universal) -> bool,
     ) -> Line<Universal>;
 }
 
@@ -136,12 +146,14 @@ impl LineMethods<Universal> for Line<Universal> {
 impl LineClip for Line<Universal> {
     fn clip_border(
         &self,
-        edge: f32,
+        edge: Universal,
         window: &Window,
-        intersection: fn(Point<Universal>, Point<Universal>, f32) -> Point<Universal>,
-        inside_edge: fn(&Window, Point<Universal>, f32) -> bool,
+        intersection: fn(Point<Universal>, Point<Universal>, Universal) -> Point<Universal>,
+        inside_edge: fn(&Window, Point<Universal>, Universal) -> bool,
     ) -> Line<Universal> {
         //println!("------------------------\nInput: {:?}", self);
+        //println!("Edge: {}", edge);
+        let closed = self.first() == self.last();
         let mut clipped = self
             .windows(2)
             .fold(Vec::with_capacity(self.len()), |mut clip, s| {
@@ -158,9 +170,11 @@ impl LineClip for Line<Universal> {
                 };
                 clip
             });
-        match clipped.last() {
-            Some(p) => clipped.insert(0, *p),
-            None => (),
+        if closed {
+            match clipped.last().copied() {
+                Some(p) => clipped.insert(0, p),
+                None => (),
+            }
         }
         //println!("Output: {:?}\n------------------------\n", clipped);
         clipped
@@ -198,11 +212,13 @@ impl<T> Polygon<T> {
         }
     }
 
-    pub fn new_copy_attributes(&self, borders: Vec<Line<T>>) -> Polygon<T> {
+    pub fn new_copy_attributes<U>(&self, borders: Vec<Line<U>>) -> Polygon<U> {
         Polygon {
             id: self.id.clone(),
             borders,
-            ..*self
+            border_color: self.border_color,
+            fill_color: self.fill_color,
+            layer: self.layer,
         }
     }
 
@@ -235,7 +251,7 @@ impl Polygon<Universal> {
     pub fn scale(mut self, scale: Universal) -> Result<Self> {
         for line in self.borders.iter_mut() {
             for point in line.iter_mut() {
-                *point = Point::new(point.x() * scale, point.y() * scale)?
+                *point = Point::<Universal>::new(point.x() * scale, point.y() * scale)?
             }
         }
         Ok(self)

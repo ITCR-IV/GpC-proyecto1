@@ -81,8 +81,9 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: Universal) -> Result<Car
     }
 
     println!(
-        "Car was approximated using {} vertices!",
-        count_vertices(&car)
+        "Car was approximated using {} vertices! And {} polygons",
+        count_vertices(&car),
+        car.len(),
     );
 
     Ok(car)
@@ -167,7 +168,7 @@ fn approx_cubic_bezier_aux(
     //    p0, p1, p2, p3
     //);
     let b = |t: Universal| {
-        Point::new(
+        Point::<Universal>::new(
             (1.0 - t).powi(3) * p0.x()
                 + 3.0 * (1.0 - t).powi(2) * t * p1.x()
                 + 3.0 * (1.0 - t) * t * t * p2.x()
@@ -198,7 +199,7 @@ fn approximate_cubic_beziers(
         let approximation = approx_cubic_bezier_aux(segment, p0, n.round() as u32)?;
         //println!("Approximation: {:?}", approximation);
         beziers.push(approximation);
-        p0 = Point::new(p0.x() + segment[4], p0.y() + segment[5])?;
+        p0 = Point::<Universal>::new(p0.x() + segment[4], p0.y() + segment[5])?;
     }
 
     Ok(beziers.concat())
@@ -235,7 +236,7 @@ fn approximate_straight_lines(
             params
                 .chunks_exact(2)
                 .map(|p| {
-                    anchor = Point::new(anchor.x() + p[0], anchor.y() + p[1])?;
+                    anchor = Point::<Universal>::new(anchor.x() + p[0], anchor.y() + p[1])?;
                     Ok(anchor)
                 })
                 .collect::<Result<Line<Universal>>>()
@@ -246,7 +247,7 @@ fn approximate_straight_lines(
             params
                 .iter()
                 .map(|p| {
-                    anchor = Point::new(anchor.x() + p, anchor.y())?;
+                    anchor = Point::<Universal>::new(anchor.x() + p, anchor.y())?;
                     Ok(anchor)
                 })
                 .collect::<Result<Line<Universal>>>()
@@ -257,7 +258,7 @@ fn approximate_straight_lines(
             params
                 .iter()
                 .map(|p| {
-                    anchor = Point::new(anchor.x(), anchor.y() + p)?;
+                    anchor = Point::<Universal>::new(anchor.x(), anchor.y() + p)?;
                     Ok(anchor)
                 })
                 .collect::<Result<Line<Universal>>>()
@@ -290,10 +291,10 @@ fn approximate_path<T: Into<Universal>>(
             m @ Command::Move(Position::Relative, params) => {
                 //println!( "m command:\tx: {}\ty: {}\tborders.len()={}", params[0], params[1], borders.len());
                 let new_point = match borders.len() {
-                    0 => Point::new(params[0], params[1]),
+                    0 => Point::<Universal>::new(params[0], params[1]),
                     _ => {
                         let anchor = get_anchor(&borders, m)?;
-                        Point::new(anchor.x() + params[0], anchor.y() + params[1])
+                        Point::<Universal>::new(anchor.x() + params[0], anchor.y() + params[1])
                     }
                 }?;
                 borders.push(vec![new_point]);
@@ -352,7 +353,7 @@ fn approximate_circle<T: Into<Universal>>(
 ) -> Result<Polygon<Universal>> {
     let mut circle_poly = init_polygon(&attributes, layer)?;
 
-    let center = Point::new(
+    let center = Point::<Universal>::new(
         attributes
             .get("cx")
             .ok_or_else(|| anyhow!("circle no trae 'cx'"))?
@@ -375,7 +376,7 @@ fn approximate_circle<T: Into<Universal>>(
     // circles can assume a single border
     let mut border: Line<Universal> = (0..num_points)
         .map(|i| {
-            Point::new(
+            Point::<Universal>::new(
                 Universal::from(center.x() + (theta * i as f32).cos() * radius),
                 Universal::from(center.y() + (theta * i as f32).sin() * radius),
             )
@@ -398,7 +399,7 @@ fn approximate_ellipse<T: Into<Universal>>(
 ) -> Result<Polygon<Universal>> {
     let mut ellipse_poly = init_polygon(&attributes, layer)?;
 
-    let center = Point::new(
+    let center = Point::<Universal>::new(
         attributes
             .get("cx")
             .ok_or_else(|| anyhow!("ellipse no trae 'cx'"))?
@@ -454,7 +455,7 @@ fn approximate_ellipse<T: Into<Universal>>(
         let theta: f32 = t as f32 * step;
         if num_points as f32 * run / circ >= next_point {
             next_point += distance;
-            border.push(Point::new(
+            border.push(Point::<Universal>::new(
                 Universal::from(center.x() + (theta).cos() * radius_x),
                 Universal::from(center.y() + (theta).sin() * radius_y),
             )?);

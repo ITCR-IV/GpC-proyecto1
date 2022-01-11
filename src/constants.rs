@@ -16,3 +16,6 @@ pub const POINT_SPACING: f32 = 0.1;
 pub const POLYLINE_N: u32 = 1000;
 
 pub const BACKGROUND_COLOR: &str = "#77a8c9";
+
+pub const ZOOM_AMOUNT: f32 = 0.3;
+pub const PAN_PERCENT: f32 = 0.1;
