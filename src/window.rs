@@ -9,6 +9,7 @@ use crate::shapes::{Color, Framebuffer, Line, LineClip, Point, Polygon, Segment,
 
 use std::cmp::Ordering;
 
+#[derive(Debug)]
 pub enum DisplayMode {
     NoColor,
     ColorFill,
@@ -50,7 +51,7 @@ impl Window {
     pub fn new(title: &str, width: u32, height: u32, car: Car) -> Result<Window> {
         let screen = ScreenContextManager::new(title, WINDOW_WIDTH, WINDOW_HEIGHT)?;
         let background_color = Color::from_hex(BACKGROUND_COLOR)?;
-        let display_mode = DisplayMode::TextureFill;
+        let display_mode = DisplayMode::NoColor;
 
         let window = Window {
             min_point: Point::<Universal>::new(0.0, 0.0)?,
@@ -111,7 +112,12 @@ impl Window {
         let fb_polys: Vec<Polygon<Framebuffer>> =
             self.map_to_framebuffer(&self.clip_car(&self.car))?;
 
-        self.no_color_draw(&fb_polys);
+        //println!("mode: {:?}", self.mode);
+        match &self.display_mode {
+            DisplayMode::NoColor => self.no_color_draw(&fb_polys),
+            DisplayMode::ColorFill => self.color_draw(&fb_polys),
+            _ => (),
+        }
 
         // Finally present changes
         self.screen
@@ -120,6 +126,10 @@ impl Window {
             .unwrap_or_else(|err| println!("Error while presenting screen: {}", err));
 
         Ok(())
+    }
+
+    pub fn switch_mode(&mut self, mode: DisplayMode) {
+        self.display_mode = mode;
     }
 
     fn no_color_draw(&mut self, fb_polys: &[Polygon<Framebuffer>]) {
@@ -133,6 +143,35 @@ impl Window {
                         y1: segment[1].y(),
                     };
                     bresenham_line(&mut self.screen, &segment);
+                }
+            }
+        }
+    }
+
+    fn color_draw(&mut self, fb_polys: &[Polygon<Framebuffer>]) {
+        for layer in self.min_layer..self.max_layer {
+            'polys: for poly in fb_polys {
+                if poly.get_layer() != layer {
+                    continue 'polys;
+                }
+
+                let sl_data = ScanlineData::new(poly);
+                // fill shapes
+
+                // draw strokes
+                for line in poly.get_borders() {
+                    for segment in line.windows(2) {
+                        if let Some(color) = poly.get_stroke_color() {
+                            self.screen.set_color(color.r(), color.g(), color.b());
+                            let segment = Segment {
+                                x0: segment[0].x(),
+                                x1: segment[1].x(),
+                                y0: segment[0].y(),
+                                y1: segment[1].y(),
+                            };
+                            bresenham_line(&mut self.screen, &segment);
+                        }
+                    }
                 }
             }
         }
@@ -484,3 +523,80 @@ fn bresenham_vertical(screen: &mut ScreenContextManager, x0: u32, y0: u32, x1: u
         }
     }
 }
+
+impl Ord for Segment {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.y_max().cmp(&other.y_max())
+    }
+}
+
+impl PartialOrd for Segment {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Segment {
+    fn eq(&self, other: &Self) -> bool {
+        self.y_max() == other.y_max()
+    }
+}
+
+impl Eq for Segment {}
+
+struct ScanlineData<'a> {
+    borders: Vec<Segment>,
+    deltas: Vec<f32>,
+    active_borders: Vec<usize>,
+    polygon: &'a Polygon<Framebuffer>,
+    next_intersect: Framebuffer,
+}
+
+impl<'a> ScanlineData<'a> {
+    fn new(fb_polygon: &'a Polygon<Framebuffer>) -> Self {
+        let mut borders: Vec<Segment> = fb_polygon
+            .get_borders()
+            .iter()
+            .flat_map(|border| {
+                border.windows(2).map(|segment| Segment {
+                    x0: segment[0].x(),
+                    x1: segment[1].x(),
+                    y0: segment[0].y(),
+                    y1: segment[1].y(),
+                })
+            })
+            .collect::<Vec<Segment>>();
+
+        borders.sort_unstable();
+        borders.reverse();
+
+        let deltas: Vec<f32> = borders
+            .iter()
+            .map(|border| {
+                1.0 / ((border.y1 as f32 - border.y0 as f32)
+                    / (border.x1 as f32 - border.x0 as f32))
+            })
+            .collect();
+
+        let mut active_borders = Vec::new();
+        let y_max = borders.first().expect("En método ScanlineData::new() de alguna manera el vector de bordes no tiene elementos").y_max();
+        for (i, possibly_active_border) in borders.iter().enumerate() {
+            if possibly_active_border.y_max() == y_max {
+                active_borders.push(i)
+            } else {
+                break;
+            }
+        }
+        let x0 = borders.first().expect("En método ScanlineData::new() de alguna manera el vector de bordes no tiene elementos").x_of_y_max();
+
+        ScanlineData {
+            borders,
+            deltas,
+            active_borders,
+            polygon: fb_polygon,
+            next_intersect: x0,
+        }
+    }
+}
+
+fn scanline(screen: &mut ScreenContextManager, sl_data: ScanlineData) {}

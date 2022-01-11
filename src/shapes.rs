@@ -1,5 +1,7 @@
 //! Mathematical representations of Points, Lines, and Polygons
 
+use std::cmp;
+
 use crate::constants::{SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::window::Window;
 use anyhow::{anyhow, Result};
@@ -104,22 +106,28 @@ pub type Line<T> = Vec<Point<T>>;
 /// Represents a straight segment, with (x0, y0) being the starting point and (x1, y1) the ending point.
 #[derive(Debug)]
 pub struct Segment {
-    pub x0: u32,
-    pub y0: u32,
-    pub x1: u32,
-    pub y1: u32,
+    pub x0: Framebuffer,
+    pub y0: Framebuffer,
+    pub x1: Framebuffer,
+    pub y1: Framebuffer,
 }
 
-//impl Segment {
-//    pub fn new(p0: Point, p1: Point) -> Segment {
-//        Segment {
-//            x0: p0.x(),
-//            y0: p0.y(),
-//            x1: p1.x(),
-//            y1: p1.y(),
-//        }
-//    }
-//}
+impl Segment {
+    pub fn y_max(&self) -> Framebuffer {
+        cmp::max(self.y0, self.y1)
+    }
+    pub fn y_min(&self) -> Framebuffer {
+        cmp::min(self.y0, self.y1)
+    }
+
+    pub fn x_of_y_max(&self) -> Framebuffer {
+        match self.y0.cmp(&self.y1) {
+            cmp::Ordering::Less => self.x1,
+            cmp::Ordering::Greater => self.x0,
+            cmp::Ordering::Equal => WINDOW_WIDTH,
+        }
+    }
+}
 
 pub trait LineMethods<T> {
     fn euclidean_length(&self) -> T;
@@ -243,6 +251,14 @@ impl<T> Polygon<T> {
 
     pub fn set_fill_color(&mut self, color: Option<Color>) {
         self.fill_color = color;
+    }
+
+    pub fn get_stroke_color(&self) -> Option<Color> {
+        self.border_color
+    }
+
+    pub fn get_fill_color(&self) -> Option<Color> {
+        self.fill_color
     }
 
     pub fn id(&self) -> &String {

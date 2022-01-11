@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use constants::{POINT_SPACING, SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH, ZOOM_AMOUNT};
 use futures::executor::block_on;
 use sdl_wrapper::{Event, Keycode};
-use window::{Pan, Window};
+use window::{DisplayMode, Pan, Window};
 
 fn main() -> Result<()> {
     let path = "images/car.svg";
@@ -20,7 +20,13 @@ fn main() -> Result<()> {
 }
 
 async fn screen_loop(mut window: Window) -> Result<()> {
-    let (mut zoom, mut pan, mut rotate, mut reset) = (1.0, Option::<Pan>::None, 0_i32, false);
+    let (mut zoom, mut pan, mut rotate, mut reset, mut mode) = (
+        1.0,
+        Option::<Pan>::None,
+        0_i32,
+        false,
+        Option::<DisplayMode>::None,
+    );
 
     'main: loop {
         window.update().await?;
@@ -42,6 +48,8 @@ async fn screen_loop(mut window: Window) -> Result<()> {
                     Keycode::E => rotate = 1,
                     Keycode::Q => rotate = -1,
                     Keycode::R => reset = true,
+                    Keycode::N => mode = Some(DisplayMode::NoColor),
+                    Keycode::C => mode = Some(DisplayMode::ColorFill),
                     _ => (),
                 },
                 _ => (),
@@ -61,11 +69,16 @@ async fn screen_loop(mut window: Window) -> Result<()> {
             zoom = 1.0;
         }
 
-        if pan.is_some() {
+        if let Some(p) = pan {
             window
-                .pan(pan.unwrap())
+                .pan(p)
                 .unwrap_or_else(|err| println!("Pan unsuccesful: {}", err));
             pan = None;
+        }
+
+        if let Some(m) = mode {
+            window.switch_mode(m);
+            mode = None;
         }
 
         if rotate != 0 {

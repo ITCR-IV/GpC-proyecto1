@@ -312,7 +312,7 @@ dependencies = [
 [[package]]
 name = "sdl_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/zkwinkle/sdl_wrapper#2341cc151e62bd6beb78deadc0591002724e16e1"
+source = "git+https://github.com/zkwinkle/sdl_wrapper?tag=v0.2.1#2341cc151e62bd6beb78deadc0591002724e16e1"
 dependencies = [
  "bytemuck",
  "futures",
