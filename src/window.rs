@@ -207,10 +207,14 @@ impl Window {
         Ok(())
     }
 
-    //pub fn reset(&mut self, car: &mut Car) {
-    //    self.rotate(-self.rotations, car);
-
-    //}
+    pub fn reset(&mut self, car: &mut Car) {
+        if (self.rotations != 0) {
+            self.rotate(-self.rotations, car)
+        }
+        self.min_point = Point::<Universal>::new_unchecked(0.0, 0.0);
+        self.max_point =
+            Point::<Universal>::new_unchecked(SCENE_SIZE as Universal, SCENE_SIZE as Universal);
+    }
 
     pub fn rotate(&mut self, amount: i32, car: &mut Car) {
         self.rotations += amount;

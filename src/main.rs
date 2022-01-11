@@ -21,7 +21,7 @@ fn main() -> Result<()> {
 }
 
 async fn screen_loop(mut window: Window, mut car: Car) -> Result<()> {
-    let (mut zoom, mut pan, mut rotate) = (1.0, Option::<Pan>::None, 0_i32);
+    let (mut zoom, mut pan, mut rotate, mut reset) = (1.0, Option::<Pan>::None, 0_i32, false);
 
     'main: loop {
         window.update(&car).await?;
@@ -42,6 +42,7 @@ async fn screen_loop(mut window: Window, mut car: Car) -> Result<()> {
                     Keycode::Right | Keycode::L => pan = Some(Pan::Right),
                     Keycode::E => rotate = 1,
                     Keycode::Q => rotate = -1,
+                    Keycode::R => reset = true,
                     _ => (),
                 },
                 _ => (),
@@ -71,6 +72,11 @@ async fn screen_loop(mut window: Window, mut car: Car) -> Result<()> {
         if rotate != 0 {
             window.rotate(rotate, &mut car);
             rotate = 0;
+        }
+
+        if reset {
+            window.reset(&mut car);
+            reset = false;
         }
     }
     Ok(())

@@ -81,7 +81,7 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: Universal) -> Result<Car
     }
 
     println!(
-        "Car was approximated using {} vertices! And {} polygons",
+        "Car was approximated using {} vertices! ({} polygons)",
         count_vertices(&car),
         car.len(),
     );
@@ -90,16 +90,23 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: Universal) -> Result<Car
 }
 
 pub fn rotate_car(car: &mut Car, amount: i32) {
-    let cos_15 = amount.abs() as f32 * COS15;
-    let sen_15 = amount as f32 * SEN15;
+    let (cos_theta, sen_theta) = if amount == 1 || amount == -1 {
+        (amount.abs() as f32 * COS15, amount as f32 * SEN15)
+    } else {
+        (
+            (amount as f32 * PI / 12.0).cos(),
+            (amount as f32 * PI / 12.0).sin(),
+        )
+    };
     for polygon in car.iter_mut() {
         for border in polygon.get_borders_mut().iter_mut() {
             for point in border.iter_mut() {
                 *point = Point::new_unchecked(
-                    point.x() * cos_15 - SCENE_CENTER * cos_15 + SCENE_CENTER - point.y() * sen_15
-                        + SCENE_CENTER * sen_15,
-                    point.x() * sen_15 - SCENE_CENTER * sen_15 + point.y() * cos_15
-                        - SCENE_CENTER * cos_15
+                    point.x() * cos_theta - SCENE_CENTER * cos_theta + SCENE_CENTER
+                        - point.y() * sen_theta
+                        + SCENE_CENTER * sen_theta,
+                    point.x() * sen_theta - SCENE_CENTER * sen_theta + point.y() * cos_theta
+                        - SCENE_CENTER * cos_theta
                         + SCENE_CENTER,
                 )
             }
