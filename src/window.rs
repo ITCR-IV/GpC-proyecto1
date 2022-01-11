@@ -114,7 +114,7 @@ impl Window {
         Ok(())
     }
 
-    fn no_color_draw(&mut self, fb_polys: &Vec<Polygon<Framebuffer>>) {
+    fn no_color_draw(&mut self, fb_polys: &[Polygon<Framebuffer>]) {
         for poly in fb_polys {
             for line in poly.get_borders() {
                 for segment in line.windows(2) {
@@ -206,6 +206,11 @@ impl Window {
         //);
         Ok(())
     }
+
+    //pub fn reset(&mut self, car: &mut Car) {
+    //    self.rotate(-self.rotations, car);
+
+    //}
 
     pub fn rotate(&mut self, amount: i32, car: &mut Car) {
         self.rotations += amount;
@@ -321,14 +326,14 @@ impl Window {
                                 Self::inside_min_y_edge,
                             );
                         // This removes the borders that are fully out of frame
-                        if clipped_border.len() > 0 {
+                        if !clipped_border.is_empty() {
                             clipped_borders.push(clipped_border);
                         }
                         clipped_borders
                     },
                 );
                 // This will remove the polygons whose borders are all fully out of frame
-                if borders.len() > 0 {
+                if !borders.is_empty() {
                     clipped_polys.push(poly.new_copy_attributes(borders));
                 }
                 clipped_polys

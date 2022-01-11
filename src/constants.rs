@@ -23,6 +23,6 @@ pub const ZOOM_AMOUNT: f32 = 0.3;
 pub const PAN_PERCENT: f32 = 0.1;
 
 /// Cosine of 15 degrees
-pub const COS15: f32 = 0.9659258263;
+pub const COS15: f32 = 0.965_925_8;
 /// Sine of 15 degrees
-pub const SEN15: f32 = 0.2588190451;
+pub const SEN15: f32 = 0.258_819_04;

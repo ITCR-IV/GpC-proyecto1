@@ -395,8 +395,8 @@ fn approximate_circle<T: Into<Universal>>(
     let mut border: Line<Universal> = (0..num_points)
         .map(|i| {
             Point::<Universal>::new(
-                Universal::from(center.x() + (theta * i as f32).cos() * radius),
-                Universal::from(center.y() + (theta * i as f32).sin() * radius),
+                center.x() + (theta * i as f32).cos() * radius,
+                center.y() + (theta * i as f32).sin() * radius,
             )
         })
         .collect::<Result<Line<Universal>>>()?;
@@ -474,8 +474,8 @@ fn approximate_ellipse<T: Into<Universal>>(
         if num_points as f32 * run / circ >= next_point {
             next_point += distance;
             border.push(Point::<Universal>::new(
-                Universal::from(center.x() + (theta).cos() * radius_x),
-                Universal::from(center.y() + (theta).sin() * radius_y),
+                center.x() + (theta).cos() * radius_x,
+                center.y() + (theta).sin() * radius_y,
             )?);
         }
         run += dp(theta);

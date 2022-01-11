@@ -171,9 +171,8 @@ impl LineClip for Line<Universal> {
                 clip
             });
         if closed {
-            match clipped.last().copied() {
-                Some(p) => clipped.insert(0, p),
-                None => (),
+            if let Some(p) = clipped.last().copied() {
+                clipped.insert(0, p)
             }
         }
         //println!("Output: {:?}\n------------------------\n", clipped);
