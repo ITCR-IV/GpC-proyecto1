@@ -130,19 +130,19 @@ impl Window {
         let x_c = (self.min_point.x() + self.max_point.x()) / 2.0;
         let y_c = (self.min_point.y() + self.max_point.y()) / 2.0;
 
-        println!(
-            "Before zoom '{}' old points are: {:?}\t{:?}",
-            zoom, self.max_point, self.min_point
-        );
+        //println!(
+        //    "Before zoom '{}' old points are: {:?}\t{:?}",
+        //    zoom, self.max_point, self.min_point
+        //);
         let min_x = (self.min_point.x() - x_c) * zoom + x_c;
         let min_y = (self.min_point.y() - y_c) * zoom + y_c;
         let max_x = (self.max_point.x() - x_c) * zoom + x_c;
         let max_y = (self.max_point.y() - y_c) * zoom + y_c;
 
-        println!(
-            "\nmin_x: {}\tmin_y: {}\nmax_x: {}\tmax_y: {}",
-            min_x, min_y, max_x, max_y
-        );
+        //println!(
+        //    "\nmin_x: {}\tmin_y: {}\nmax_x: {}\tmax_y: {}",
+        //    min_x, min_y, max_x, max_y
+        //);
 
         let (min, max): (Point<Universal>, Point<Universal>) = match (
             Point::<Universal>::new(min_x, min_y),
@@ -196,10 +196,10 @@ impl Window {
         self.min_point = min;
         self.max_point = max;
 
-        println!(
-            "After zoom '{}' new points are: {:?}\t{:?}",
-            zoom, self.max_point, self.min_point
-        );
+        //println!(
+        //    "After zoom '{}' new points are: {:?}\t{:?}",
+        //    zoom, self.max_point, self.min_point
+        //);
         Ok(())
     }
 
@@ -352,16 +352,28 @@ fn intersection_horizontal(
     p1: Point<Universal>,
     y_edge: f32,
 ) -> Point<Universal> {
-    let m = (p1.y() - p0.y()) / (p1.x() - p0.x());
-    let b = p0.y() - m * p0.x();
-    let x = (y_edge - b) / m;
-    if x > 1000.0 {
-        println!(
-            "-------\ny = mx + b\ny:{}\tm:{}\tx:{}\tb:{}\np0:{:?}\tp1:{:?}\n-------",
-            y_edge, m, x, b, p0, p1
-        );
-    }
-    Point::<Universal>::new_unchecked((y_edge - b) / m, y_edge)
+    let x = if p0.x() == p1.x() {
+        p0.x()
+    } else {
+        let m = (p1.y() - p0.y()) / (p1.x() - p0.x());
+        let b = p0.y() - m * p0.x();
+        (y_edge - b) / m
+        //let x = (y_edge - b) / m;
+        //if x > 1000.0 {
+        //    println!(
+        //        "-------\ny = mx + b\ny:{}\tm:{}\tx:{}\tb:{}\np0:{:?}\tp1:{:?}\n-------",
+        //        y_edge, m, x, b, p0, p1
+        //    );
+        //}
+        //if x.is_nan() {
+        //    println!(
+        //        "-------\ny = mx + b\ny:{}\tm:{}\tx:{}\tb:{}\np0:{:?}\tp1:{:?}\n-------",
+        //        y_edge, m, x, b, p0, p1
+        //    );
+        //}
+        //x
+    };
+    Point::<Universal>::new_unchecked(x, y_edge)
 }
 
 fn intersection_vertical(
