@@ -15,7 +15,7 @@ use svg::node::element::{
 use svg::node::Attributes;
 use svg::parser::{Event, Parser};
 
-use crate::constants::POLYLINE_N;
+use crate::constants::{COS15, POLYLINE_N, SCENE_CENTER, SEN15};
 use crate::shapes::{Color, Line, LineMethods, Point, Polygon, Universal};
 
 pub type Car = Vec<Polygon<Universal>>;
@@ -87,6 +87,24 @@ pub fn parse_svg(path: &str, scene_size: u32, distance: Universal) -> Result<Car
     );
 
     Ok(car)
+}
+
+pub fn rotate_car(car: &mut Car, amount: i32) {
+    let cos_15 = amount.abs() as f32 * COS15;
+    let sen_15 = amount as f32 * SEN15;
+    for polygon in car.iter_mut() {
+        for border in polygon.get_borders_mut().iter_mut() {
+            for point in border.iter_mut() {
+                *point = Point::new_unchecked(
+                    point.x() * cos_15 - SCENE_CENTER * cos_15 + SCENE_CENTER - point.y() * sen_15
+                        + SCENE_CENTER * sen_15,
+                    point.x() * sen_15 - SCENE_CENTER * sen_15 + point.y() * cos_15
+                        - SCENE_CENTER * cos_15
+                        + SCENE_CENTER,
+                )
+            }
+        }
+    }
 }
 
 pub fn count_vertices(car: &Car) -> usize {

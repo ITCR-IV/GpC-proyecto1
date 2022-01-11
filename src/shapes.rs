@@ -234,6 +234,10 @@ impl<T> Polygon<T> {
         &self.borders
     }
 
+    pub fn get_borders_mut(&mut self) -> &mut Vec<Line<T>> {
+        &mut self.borders
+    }
+
     pub fn set_stroke_color(&mut self, color: Option<Color>) {
         self.border_color = color;
     }

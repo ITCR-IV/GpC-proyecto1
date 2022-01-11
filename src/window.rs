@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Context, Result};
 use sdl_wrapper::{EventPollIterator, ScreenContextManager};
 
-use crate::car::Car;
+use crate::car::{self, Car};
 use crate::constants::{BACKGROUND_COLOR, PAN_PERCENT, SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::shapes::{Color, Framebuffer, Line, LineClip, Point, Polygon, Segment, Universal};
 
@@ -37,6 +37,9 @@ pub struct Window {
 
     /// Display mode for the car
     display_mode: DisplayMode,
+
+    /// Rotations carried out on the car
+    rotations: i32,
 }
 
 impl Window {
@@ -51,6 +54,7 @@ impl Window {
             screen,
             background_color,
             display_mode,
+            rotations: 0,
         };
 
         // center window in the scene
@@ -148,7 +152,7 @@ impl Window {
             Point::<Universal>::new(min_x, min_y),
             Point::<Universal>::new(max_x, max_y),
         ) {
-            (Err(_), Ok(max)) if zoom > 1.0 => {
+            (Err(_), Ok(_)) if zoom > 1.0 => {
                 let x_displacement = (min_x - min_x.abs()) / 2.0;
                 let y_displacement = (min_y - min_y.abs()) / 2.0;
                 println!("x_disp: {}\t y_disp: {}", x_displacement, y_displacement);
@@ -162,7 +166,7 @@ impl Window {
                     .context("The other serious error but for max")?,
                 )
             }
-            (Ok(min), Err(_)) if zoom > 1.0 => {
+            (Ok(_), Err(_)) if zoom > 1.0 => {
                 let x_displacement = (max_x - SCENE_SIZE as f32).max(0.0);
                 let y_displacement = (max_y - SCENE_SIZE as f32).max(0.0);
                 println!("x_disp: {}\t y_disp: {}", x_displacement, y_displacement);
@@ -201,6 +205,11 @@ impl Window {
         //    zoom, self.max_point, self.min_point
         //);
         Ok(())
+    }
+
+    pub fn rotate(&mut self, amount: i32, car: &mut Car) {
+        self.rotations += amount;
+        car::rotate_car(car, amount);
     }
 
     pub fn pan(&mut self, pan: Pan) -> Result<()> {
