@@ -187,6 +187,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
+name = "impls"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a46645bbd70538861a90d0f26c31537cdf1e44aae99a794fb75a664b70951bc"
+
+[[package]]
 name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -259,6 +265,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "impls",
  "itertools",
  "sdl_wrapper",
  "svg",
@@ -305,7 +312,7 @@ dependencies = [
 [[package]]
 name = "sdl_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/zkwinkle/sdl_wrapper#4b74f489d09dad010f340adb65db61ffb7ce288a"
+source = "git+https://github.com/zkwinkle/sdl_wrapper#2341cc151e62bd6beb78deadc0591002724e16e1"
 dependencies = [
  "bytemuck",
  "futures",

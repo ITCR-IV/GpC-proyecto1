@@ -1,11 +1,11 @@
 //! Contains the Window class, which represents the window in the computer graphics
 //! sense. It wraps the sdl_wrapper ScreenContextManager and implements all the drawing methods.
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use sdl_wrapper::{EventPollIterator, ScreenContextManager};
 
 use crate::car::Car;
 use crate::constants::{BACKGROUND_COLOR, SCENE_SIZE};
-use crate::shapes::{Color, Line, LineMethods, Point, Polygon, Segment};
+use crate::shapes::{Color, Line, LineClip, Point, Polygon, Segment, Universal};
 
 use std::cmp::Ordering;
 
@@ -18,10 +18,10 @@ pub enum DisplayMode {
 
 pub struct Window {
     /// The top-left corner
-    min_point: Point,
+    min_point: Point<Universal>,
 
     /// The bottom-right corner
-    max_point: Point,
+    max_point: Point<Universal>,
 
     screen: ScreenContextManager,
 
@@ -90,8 +90,7 @@ impl Window {
         }
 
         // Then paint car
-        // TODO: remove empty shit (polygons may well be fully outside of window)
-        let cut_polys: Vec<Polygon> = self.clip_car(car);
+        let cut_polys: Vec<Polygon<Universal>> = self.clip_car(car);
         for poly in cut_polys {
             for line in poly.get_borders() {
                 for segment in line.windows(2) {
@@ -115,14 +114,18 @@ impl Window {
         Ok(())
     }
 
-    fn clip_car(&self, car: &Car) -> Vec<Polygon> {
+    //fn map_to_framebuffer()
+
+    fn clip_car(&self, car: &Car) -> Vec<Polygon<Universal>> {
         car.iter()
             .fold(Vec::with_capacity(car.len()), |mut clipped_polys, poly| {
                 //println!("id: {}", poly.id());
                 let borders = poly.get_borders();
                 let borders = borders.iter().fold(
                     Vec::with_capacity(borders.len()),
-                    |mut clipped_borders: Vec<Line>, border: &Line| -> Vec<Line> {
+                    |mut clipped_borders: Vec<Line<Universal>>,
+                     border: &Line<Universal>|
+                     -> Vec<Line<Universal>> {
                         let clipped_border = border
                             .clip_border(
                                 self.max_point.x(),
@@ -148,30 +151,36 @@ impl Window {
                                 intersection_horizontal,
                                 Self::inside_min_edge,
                             );
-                        clipped_borders.push(clipped_border);
+                        // This removes the borders that are fully out of frame
+                        if clipped_border.len() > 0 {
+                            clipped_borders.push(clipped_border);
+                        }
                         clipped_borders
                     },
                 );
-                clipped_polys.push(poly.new_copy_attributes(borders));
+                // This will remove the polygons whose borders are all fully out of frame
+                if borders.len() > 0 {
+                    clipped_polys.push(poly.new_copy_attributes(borders));
+                }
                 clipped_polys
             })
     }
 
-    fn contains(&self, point: Point) -> bool {
+    fn contains(&self, point: Point<Universal>) -> bool {
         point.x() >= self.min_point.x()
             && point.x() <= self.max_point.x()
             && point.y() >= self.min_point.y()
             && point.y() <= self.max_point.y()
     }
 
-    fn inside_min_edge(&self, point: Point, edge: f32) -> bool {
+    fn inside_min_edge(&self, point: Point<Universal>, edge: f32) -> bool {
         match edge {
             edge if edge == self.min_point.x() => point.x() >= edge,
             edge if edge == self.min_point.y() => point.y() >= edge,
             weird_edge => panic!("The edge given to inside_min_edge() doesn't match any of the current window min edges (edge = '{}')", weird_edge)
         }
     }
-    fn inside_max_edge(&self, point: Point, edge: f32) -> bool {
+    fn inside_max_edge(&self, point: Point<Universal>, edge: f32) -> bool {
         match edge {
             edge if edge == self.max_point.x() => point.x() <= edge,
             edge if edge == self.max_point.y() => point.y() <= edge,
@@ -180,13 +189,21 @@ impl Window {
     }
 }
 
-fn intersection_horizontal(p0: Point, p1: Point, y_edge: f32) -> Point {
+fn intersection_horizontal(
+    p0: Point<Universal>,
+    p1: Point<Universal>,
+    y_edge: f32,
+) -> Point<Universal> {
     let m = (p1.y() - p0.y()) / (p1.x() - p0.x());
     let b = p0.y() - m * p0.x();
     Point::new_unchecked((y_edge - b) / m, y_edge)
 }
 
-fn intersection_vertical(p0: Point, p1: Point, x_edge: f32) -> Point {
+fn intersection_vertical(
+    p0: Point<Universal>,
+    p1: Point<Universal>,
+    x_edge: f32,
+) -> Point<Universal> {
     let m = (p1.y() - p0.y()) / (p1.x() - p0.x());
     let b = p0.y() - m * p0.x();
     Point::new_unchecked(x_edge, m * x_edge + b)

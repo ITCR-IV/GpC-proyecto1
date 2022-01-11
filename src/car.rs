@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context, Result};
 //Err(anyhow!(
 //    "Esta función está incompleta y no se debe llamar: 'parse_color()'"
 //))
+use impls::impls;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::f32::consts::PI;
@@ -15,15 +16,19 @@ use svg::node::Attributes;
 use svg::parser::{Event, Parser};
 
 use crate::constants::POLYLINE_N;
-use crate::shapes::{Color, Line, LineMethods, Point, Polygon};
+use crate::shapes::{Color, Line, LineMethods, Point, Polygon, Universal};
 
-pub type Car = Vec<Polygon>;
+pub type Car = Vec<Polygon<Universal>>;
 
 /// Function made to specifically parse the "car.svg" file and return a "Car" object (which is just
 /// Vec<Polygon>.
-pub fn parse_svg(path: &str, scene_size: u32, distance: f32) -> Result<Car> {
+pub fn parse_svg(path: &str, scene_size: u32, distance: Universal) -> Result<Car> {
+    if !impls!(Universal: From<f32>) {
+        return Err(anyhow!("tipo Universal no es convertible a f32"));
+    }
+
     let mut content = String::new();
-    let (parser, mut car, scaling) = init_svg(path, scene_size, &mut content)?;
+    let (parser, mut car, scaling) = init_svg::<f32>(path, scene_size, &mut content)?;
 
     let mut layer: i32 = 0;
 
@@ -131,7 +136,7 @@ fn parse_style(style: &str) -> Result<Style> {
     })
 }
 
-fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon> {
+fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon<Universal>> {
     let id = attributes
         .get("id")
         .ok_or_else(|| anyhow!("elemento (path/circle/ellipse) no trae id"))?;
@@ -148,7 +153,11 @@ fn init_polygon(attributes: &Attributes, layer: i32) -> Result<Polygon> {
     Ok(poly)
 }
 
-fn approx_cubic_bezier_aux(segment: &[f32], anchor: Point, n: u32) -> Result<Line> {
+fn approx_cubic_bezier_aux(
+    segment: &[Universal],
+    anchor: Point<Universal>,
+    n: u32,
+) -> Result<Line<Universal>> {
     let p0 = anchor;
     let p1 = Point::new_unchecked(segment[0] + p0.x(), segment[1] + p0.y());
     let p2 = Point::new_unchecked(segment[2] + p0.x(), segment[3] + p0.y());
@@ -157,7 +166,7 @@ fn approx_cubic_bezier_aux(segment: &[f32], anchor: Point, n: u32) -> Result<Lin
     //    "Approximating curve:\n\tp0: {:?}\tp1: {:?}\n\tp2: {:?}\tp3: {:?}",
     //    p0, p1, p2, p3
     //);
-    let b = |t: f32| {
+    let b = |t: Universal| {
         Point::new(
             (1.0 - t).powi(3) * p0.x()
                 + 3.0 * (1.0 - t).powi(2) * t * p1.x()
@@ -171,12 +180,16 @@ fn approx_cubic_bezier_aux(segment: &[f32], anchor: Point, n: u32) -> Result<Lin
     };
 
     (0..n)
-        .map(|t| b((t as f32) / n as f32))
-        .collect::<Result<Line>>()
+        .map(|t| b((t as Universal) / n as Universal))
+        .collect::<Result<Line<Universal>>>()
 }
 
-fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) -> Result<Line> {
-    let mut beziers: Vec<Line> = Vec::new();
+fn approximate_cubic_beziers(
+    points: &Parameters,
+    anchor: Point<Universal>,
+    distance: Universal,
+) -> Result<Line<Universal>> {
+    let mut beziers: Vec<Line<Universal>> = Vec::new();
     let mut p0 = anchor;
     for segment in points.chunks(6) {
         let length = approx_cubic_bezier_aux(segment, p0, POLYLINE_N)?.euclidean_length();
@@ -191,12 +204,15 @@ fn approximate_cubic_beziers(points: &Parameters, anchor: Point, distance: f32) 
     Ok(beziers.concat())
 }
 
-fn get_anchor(borders: &[Line], command: &Command) -> Result<Point> {
+fn get_anchor(borders: &[Line<Universal>], command: &Command) -> Result<Point<Universal>> {
     Ok(*(borders.last().ok_or_else(|| { anyhow!( "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders", command) })?
             .last().ok_or_else(|| { anyhow!("Llamado comando '{:?}' sin haber agregado ningún punto previo a último borde (osea sin comando 'm')", command)})?))
 }
 
-fn get_last_border_mut<'a>(borders: &'a mut Vec<Line>, command: &Command) -> Result<&'a mut Line> {
+fn get_last_border_mut<'a>(
+    borders: &'a mut Vec<Line<Universal>>,
+    command: &Command,
+) -> Result<&'a mut Line<Universal>> {
     borders.last_mut().ok_or_else(|| {
         anyhow!(
             "Llamado comando '{:?}' sin haber inicializado algún Line dentro de borders",
@@ -205,7 +221,10 @@ fn get_last_border_mut<'a>(borders: &'a mut Vec<Line>, command: &Command) -> Res
     })
 }
 
-fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Line> {
+fn approximate_straight_lines(
+    command: &Command,
+    borders: &[Line<Universal>],
+) -> Result<Line<Universal>> {
     match command {
         l @ Command::Line(Position::Relative, params) => {
             //println!("l command");
@@ -219,7 +238,7 @@ fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Lin
                     anchor = Point::new(anchor.x() + p[0], anchor.y() + p[1])?;
                     Ok(anchor)
                 })
-                .collect::<Result<Line>>()
+                .collect::<Result<Line<Universal>>>()
         }
         h @ Command::HorizontalLine(Position::Relative, params) => {
             //println!("h command");
@@ -230,7 +249,7 @@ fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Lin
                     anchor = Point::new(anchor.x() + p, anchor.y())?;
                     Ok(anchor)
                 })
-                .collect::<Result<Line>>()
+                .collect::<Result<Line<Universal>>>()
         }
         v @ Command::VerticalLine(Position::Relative, params) => {
             //println!("v command");
@@ -241,7 +260,7 @@ fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Lin
                     anchor = Point::new(anchor.x(), anchor.y() + p)?;
                     Ok(anchor)
                 })
-                .collect::<Result<Line>>()
+                .collect::<Result<Line<Universal>>>()
         }
         c => {
             return Err(anyhow!(
@@ -252,19 +271,19 @@ fn approximate_straight_lines(command: &Command, borders: &[Line]) -> Result<Lin
     }
 }
 
-fn approximate_path(
+fn approximate_path<T: Into<Universal>>(
     attributes: Attributes,
     layer: i32,
-    scaling: f32,
-    distance: f32,
-) -> Result<Polygon> {
+    scaling: T,
+    distance: Universal,
+) -> Result<Polygon<Universal>> {
     let data = attributes
         .get("d")
         .ok_or_else(|| anyhow!("path sin atributo 'd'"))?;
     let data =
         Data::parse(data).context("En approximate_path() no se pudo parsear el atributo 'd'.")?;
 
-    let mut borders = Vec::<Line>::new();
+    let mut borders = Vec::<Line<Universal>>::new();
 
     for command in data.iter() {
         match command {
@@ -322,15 +341,15 @@ fn approximate_path(
     path_poly.set_borders(borders);
 
     //println!("Path finished\n");
-    path_poly.scale(scaling)
+    path_poly.scale(scaling.into())
 }
 
-fn approximate_circle(
+fn approximate_circle<T: Into<Universal>>(
     attributes: Attributes,
     layer: i32,
-    scaling: f32,
-    distance: f32,
-) -> Result<Polygon> {
+    scaling: T,
+    distance: Universal,
+) -> Result<Polygon<Universal>> {
     let mut circle_poly = init_polygon(&attributes, layer)?;
 
     let center = Point::new(
@@ -354,29 +373,29 @@ fn approximate_circle(
     let theta: f32 = 2.0 * PI / num_points as f32;
 
     // circles can assume a single border
-    let mut border: Line = (0..num_points)
+    let mut border: Line<Universal> = (0..num_points)
         .map(|i| {
             Point::new(
-                center.x() + (theta * i as f32).cos() * radius,
-                center.y() + (theta * i as f32).sin() * radius,
+                Universal::from(center.x() + (theta * i as f32).cos() * radius),
+                Universal::from(center.y() + (theta * i as f32).sin() * radius),
             )
         })
-        .collect::<Result<Line>>()?;
+        .collect::<Result<Line<Universal>>>()?;
 
     // Agregar punto inical al final para completar círculo
     border.push(border[0]);
 
     circle_poly.add_border(border);
 
-    circle_poly.scale(scaling)
+    circle_poly.scale(scaling.into())
 }
 
-fn approximate_ellipse(
+fn approximate_ellipse<T: Into<Universal>>(
     attributes: Attributes,
     layer: i32,
-    scaling: f32,
-    distance: f32,
-) -> Result<Polygon> {
+    scaling: T,
+    distance: Universal,
+) -> Result<Polygon<Universal>> {
     let mut ellipse_poly = init_polygon(&attributes, layer)?;
 
     let center = Point::new(
@@ -430,14 +449,14 @@ fn approximate_ellipse(
     let mut run: f32 = 0.0;
     let mut next_point = 0.0;
 
-    let mut border = Line::new();
+    let mut border: Line<Universal> = Line::new();
     for t in 0..(2.0 * PI / step).trunc() as u32 {
         let theta: f32 = t as f32 * step;
         if num_points as f32 * run / circ >= next_point {
             next_point += distance;
             border.push(Point::new(
-                center.x() + (theta).cos() * radius_x,
-                center.y() + (theta).sin() * radius_y,
+                Universal::from(center.x() + (theta).cos() * radius_x),
+                Universal::from(center.y() + (theta).sin() * radius_y),
             )?);
         }
         run += dp(theta);
@@ -457,18 +476,18 @@ fn approximate_ellipse(
 
     ellipse_poly.add_border(border);
 
-    ellipse_poly.scale(scaling)
+    ellipse_poly.scale(scaling.into())
 }
 
 /// This function parse the initial lines of the "car.svg" file, ignoring anything before the <svg>
 /// tag, but making sure that <svg> is the first tag in the file and that it does exist. When found
 /// it obtains the "viewBox" size and scales it by the "scale" factor. Returns a Car object that
 /// still holds no polygons but has its dimensions defined.
-fn init_svg<'l>(
+fn init_svg<'l, T: Into<Universal> + From<f32>>(
     path: &str,
     scene_size: u32,
     content: &'l mut String,
-) -> Result<(Parser<'l>, Car, f32)> {
+) -> Result<(Parser<'l>, Car, T)> {
     // init car with dummy values
     let car: Car = Vec::new();
 
@@ -499,7 +518,7 @@ fn init_svg<'l>(
                     })?;
 
                 return if viewbox.len() == 4 && viewbox[2] == viewbox[3] {
-                    let scaling: f32 = scene_size as f32 / viewbox[2];
+                    let scaling = T::from(scene_size as f32 / viewbox[2]);
                     Ok((parser, car, scaling))
                 } else {
                     Err(anyhow!(

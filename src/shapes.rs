@@ -6,10 +6,13 @@ use anyhow::{anyhow, Result};
 
 /// Important to note that this is a point in universal, continous coordinates.
 #[derive(Copy, Clone, Debug)]
-pub struct Point {
-    x: f32,
-    y: f32,
+pub struct Point<T> {
+    x: T,
+    y: T,
 }
+
+pub type Universal = f32;
+pub type Framebuffer = u32;
 
 fn check_ranges<N: PartialOrd + ToString>(values: Vec<N>, min: N, max: N) -> Result<()> {
     let mut wrong_vals = values.iter().filter(|v| **v < min || **v > max).peekable();
@@ -22,20 +25,20 @@ fn check_ranges<N: PartialOrd + ToString>(values: Vec<N>, min: N, max: N) -> Res
     }
 }
 
-impl Point {
-    pub fn new(x: f32, y: f32) -> Result<Point> {
-        check_ranges(vec![x, y], 0.0, SCENE_SIZE as f32)?;
+impl Point<Universal> {
+    pub fn new(x: Universal, y: Universal) -> Result<Point<Universal>> {
+        check_ranges(vec![x, y], 0.0, SCENE_SIZE as Universal)?;
         Ok(Point { x, y })
     }
 
-    pub fn new_unchecked(x: f32, y: f32) -> Point {
+    pub fn new_unchecked(x: Universal, y: Universal) -> Point<Universal> {
         Point { x, y }
     }
 
-    pub fn x(&self) -> f32 {
+    pub fn x(&self) -> Universal {
         self.x
     }
-    pub fn y(&self) -> f32 {
+    pub fn y(&self) -> Universal {
         self.y
     }
 }
@@ -86,7 +89,7 @@ impl Color {
 /// Note that a 'Line' isn't a straight 2-point line. It's composed of an arbitrary amount of
 /// Points. It can represent the entire border encapsulating a polygon, or a single dot. If a
 /// line circles back then the last Point will be equal to the first one.
-pub type Line = Vec<Point>;
+pub type Line<T> = Vec<Point<T>>;
 
 /// Represents a straight segment, with (x0, y0) being the starting point and (x1, y1) the ending point.
 #[derive(Debug)]
@@ -108,31 +111,36 @@ pub struct Segment {
 //    }
 //}
 
-pub trait LineMethods {
-    fn euclidean_length(&self) -> f32;
+pub trait LineMethods<T> {
+    fn euclidean_length(&self) -> T;
+}
+
+pub trait LineClip {
     fn clip_border(
         &self,
         edge: f32,
         window: &Window,
-        intersection: fn(Point, Point, f32) -> Point,
-        inside_edge: fn(&Window, Point, f32) -> bool,
-    ) -> Line;
+        intersection: fn(Point<Universal>, Point<Universal>, f32) -> Point<Universal>,
+        inside_edge: fn(&Window, Point<Universal>, f32) -> bool,
+    ) -> Line<Universal>;
 }
 
-impl LineMethods for Line {
-    fn euclidean_length(&self) -> f32 {
+impl LineMethods<Universal> for Line<Universal> {
+    fn euclidean_length(&self) -> Universal {
         self.windows(2)
             .map(|w| ((w[1].x() - w[0].x()).powi(2) + (w[1].y() - w[0].y()).powi(2)).sqrt())
             .sum()
     }
+}
 
+impl LineClip for Line<Universal> {
     fn clip_border(
         &self,
         edge: f32,
         window: &Window,
-        intersection: fn(Point, Point, f32) -> Point,
-        inside_edge: fn(&Window, Point, f32) -> bool,
-    ) -> Line {
+        intersection: fn(Point<Universal>, Point<Universal>, f32) -> Point<Universal>,
+        inside_edge: fn(&Window, Point<Universal>, f32) -> bool,
+    ) -> Line<Universal> {
         //println!("------------------------\nInput: {:?}", self);
         let mut clipped = self
             .windows(2)
@@ -159,10 +167,10 @@ impl LineMethods for Line {
     }
 }
 
-pub struct Polygon {
+pub struct Polygon<T> {
     /// The borders being a Vec<Line> doesn't mean that every straight line encapsulating for
     /// example a square is a different border. That would be a polygon considered having just one border. The multiple borders are for polygons that have "holes" in them, like hollowed out circles.
-    borders: Vec<Line>,
+    borders: Vec<Line<T>>,
 
     /// Border color being "None" just means to not draw an outline when in "color" and "texture"
     /// modes.
@@ -179,8 +187,8 @@ pub struct Polygon {
     id: String,
 }
 
-impl Polygon {
-    pub fn new(layer: i32, id: String) -> Polygon {
+impl<T> Polygon<T> {
+    pub fn new(layer: i32, id: String) -> Polygon<T> {
         Polygon {
             borders: Vec::new(),
             border_color: None,
@@ -190,7 +198,7 @@ impl Polygon {
         }
     }
 
-    pub fn new_copy_attributes(&self, borders: Vec<Line>) -> Polygon {
+    pub fn new_copy_attributes(&self, borders: Vec<Line<T>>) -> Polygon<T> {
         Polygon {
             id: self.id.clone(),
             borders,
@@ -198,15 +206,15 @@ impl Polygon {
         }
     }
 
-    pub fn add_border(&mut self, border: Line) {
+    pub fn add_border(&mut self, border: Line<T>) {
         self.borders.push(border);
     }
 
-    pub fn set_borders(&mut self, borders: Vec<Line>) {
+    pub fn set_borders(&mut self, borders: Vec<Line<T>>) {
         self.borders = borders;
     }
 
-    pub fn get_borders(&self) -> &Vec<Line> {
+    pub fn get_borders(&self) -> &Vec<Line<T>> {
         &self.borders
     }
 
@@ -218,16 +226,18 @@ impl Polygon {
         self.fill_color = color;
     }
 
-    pub fn scale(mut self, scale: f32) -> Result<Self> {
+    pub fn id(&self) -> &String {
+        &self.id
+    }
+}
+
+impl Polygon<Universal> {
+    pub fn scale(mut self, scale: Universal) -> Result<Self> {
         for line in self.borders.iter_mut() {
             for point in line.iter_mut() {
                 *point = Point::new(point.x() * scale, point.y() * scale)?
             }
         }
         Ok(self)
-    }
-
-    pub fn id(&self) -> &String {
-        &self.id
     }
 }
