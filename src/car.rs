@@ -114,6 +114,20 @@ pub fn rotate_car(car: &mut Car, amount: i32) {
     }
 }
 
+pub fn get_lowest_layer(car: &Car) -> i32 {
+    car.iter()
+        .map(|p| p.get_layer())
+        .min()
+        .expect("car is empty in get_lowest_layer() function")
+}
+
+pub fn get_top_layer(car: &Car) -> i32 {
+    car.iter()
+        .map(|p| p.get_layer())
+        .max()
+        .expect("car is empty in get_top_layer() function")
+}
+
 pub fn count_vertices(car: &Car) -> usize {
     car.iter().flat_map(|p| p.get_borders()).flatten().count()
 }

@@ -4,7 +4,6 @@ mod shapes;
 mod window;
 
 use anyhow::{Context, Result};
-use car::Car;
 use constants::{POINT_SPACING, SCENE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH, ZOOM_AMOUNT};
 use futures::executor::block_on;
 use sdl_wrapper::{Event, Keycode};
@@ -13,18 +12,18 @@ use window::{Pan, Window};
 fn main() -> Result<()> {
     let path = "images/car.svg";
     let car = car::parse_svg(path, SCENE_SIZE, POINT_SPACING)?;
-    let window = Window::new("2D World", WINDOW_WIDTH, WINDOW_HEIGHT)?;
+    let window = Window::new("2D World", WINDOW_WIDTH, WINDOW_HEIGHT, car)?;
 
-    block_on(screen_loop(window, car))?;
+    block_on(screen_loop(window))?;
 
     Ok(())
 }
 
-async fn screen_loop(mut window: Window, mut car: Car) -> Result<()> {
+async fn screen_loop(mut window: Window) -> Result<()> {
     let (mut zoom, mut pan, mut rotate, mut reset) = (1.0, Option::<Pan>::None, 0_i32, false);
 
     'main: loop {
-        window.update(&car).await?;
+        window.update().await?;
         // Manejo de eventos
         for event in window.get_events() {
             match event {
@@ -70,12 +69,12 @@ async fn screen_loop(mut window: Window, mut car: Car) -> Result<()> {
         }
 
         if rotate != 0 {
-            window.rotate(rotate, &mut car);
+            window.rotate(rotate);
             rotate = 0;
         }
 
         if reset {
-            window.reset(&mut car);
+            window.reset();
             reset = false;
         }
     }

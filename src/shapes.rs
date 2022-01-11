@@ -248,6 +248,10 @@ impl<T> Polygon<T> {
     pub fn id(&self) -> &String {
         &self.id
     }
+
+    pub fn get_layer(&self) -> i32 {
+        self.layer
+    }
 }
 
 impl Polygon<Universal> {

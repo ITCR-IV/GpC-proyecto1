@@ -40,10 +40,14 @@ pub struct Window {
 
     /// Rotations carried out on the car
     rotations: i32,
+
+    car: Car,
+    min_layer: i32,
+    max_layer: i32,
 }
 
 impl Window {
-    pub fn new(title: &str, width: u32, height: u32) -> Result<Window> {
+    pub fn new(title: &str, width: u32, height: u32, car: Car) -> Result<Window> {
         let screen = ScreenContextManager::new(title, WINDOW_WIDTH, WINDOW_HEIGHT)?;
         let background_color = Color::from_hex(BACKGROUND_COLOR)?;
         let display_mode = DisplayMode::TextureFill;
@@ -55,6 +59,9 @@ impl Window {
             background_color,
             display_mode,
             rotations: 0,
+            min_layer: car::get_lowest_layer(&car),
+            max_layer: car::get_top_layer(&car),
+            car,
         };
 
         // center window in the scene
@@ -85,7 +92,7 @@ impl Window {
         self.screen.get_events()
     }
 
-    pub async fn update(&mut self, car: &Car) -> Result<()> {
+    pub async fn update(&mut self) -> Result<()> {
         // First clear background
         match self.display_mode {
             DisplayMode::NoColor => {
@@ -101,7 +108,8 @@ impl Window {
         }
 
         // Then paint car
-        let fb_polys: Vec<Polygon<Framebuffer>> = self.map_to_framebuffer(&self.clip_car(car))?;
+        let fb_polys: Vec<Polygon<Framebuffer>> =
+            self.map_to_framebuffer(&self.clip_car(&self.car))?;
 
         self.no_color_draw(&fb_polys);
 
@@ -207,18 +215,18 @@ impl Window {
         Ok(())
     }
 
-    pub fn reset(&mut self, car: &mut Car) {
-        if (self.rotations != 0) {
-            self.rotate(-self.rotations, car)
+    pub fn reset(&mut self) {
+        if self.rotations != 0 {
+            self.rotate(-self.rotations)
         }
         self.min_point = Point::<Universal>::new_unchecked(0.0, 0.0);
         self.max_point =
             Point::<Universal>::new_unchecked(SCENE_SIZE as Universal, SCENE_SIZE as Universal);
     }
 
-    pub fn rotate(&mut self, amount: i32, car: &mut Car) {
+    pub fn rotate(&mut self, amount: i32) {
         self.rotations += amount;
-        car::rotate_car(car, amount);
+        car::rotate_car(&mut self.car, amount);
     }
 
     pub fn pan(&mut self, pan: Pan) -> Result<()> {
